@@ -1,0 +1,7 @@
+name: GitHub Actions Demo2
+on: [push]
+jobs:
+  Explore-GitHub-Actions:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Another second unrelated duplicate inconsequential workflow that should not exist but does for no reason other than 'I exist therefore I am'."
