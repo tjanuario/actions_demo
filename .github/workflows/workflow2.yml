@@ -1,7 +1,7 @@
-name: My seond workflow
+name: My second workflow
 on: [push]
 jobs:
-  Explore-GitHub-Actions:
+  My-second-workflow:
     runs-on: ubuntu-latest
     steps:
       - run: echo "Another second unrelated duplicate inconsequential workflow that should not exist but does for no reason other than 'I exist therefore I am'."
