@@ -17,7 +17,12 @@ on:
   #push:
   #  branches:
   #    - main
-  pull_request: [opened, synchronize, reopened, closed]
+  pull_request: 
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - closed
 
 jobs:
   terraform:
