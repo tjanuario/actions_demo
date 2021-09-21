@@ -69,7 +69,7 @@ jobs:
       
       # Write the resulting plan back to the PR
       - name: Update Pull Request With Plan
-        id: update_pr
+        id: update_pr_plan
         uses: actions/github-script@0.9.0
         if: github.event_name == 'pull_request'
         env:
@@ -115,7 +115,7 @@ jobs:
 
       # Write the resulting plan back to the PR
       - name: Update Pull Request With Plan and Apply Results
-        id: update_pr
+        id: update_pr_apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: actions/github-script@0.9.0
         env:
