@@ -39,6 +39,12 @@ jobs:
           git config --global url."https://${GH_TOKEN}@github.com/UCSF-DevOps".insteadOf "https://github.com/UCSF-DevOps"
         env:
           GH_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+      
+      - name: Setup Terraformsecrets.GH_PERSONAL_ACCESS_TOKEN
+        uses: hashicorp/setup-terraform@v1
+        with:
+          # terraform_version: 0.13.0
+          cli_config_credentials_token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
 
       # Ensure that the terraform code follows best practices
       - name: Terraform Format
