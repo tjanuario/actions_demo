@@ -14,10 +14,15 @@ name: "terraform"
 # ARM_TENANT_ID: The tenant ID of the 
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
+  #push:
+  #  branches:
+  #    - main
+  pull_request: 
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - closed
 
 jobs:
   terraform:
@@ -110,7 +115,7 @@ jobs:
       # A branch protection should *ALSO* be set to only allow merges (no direct pushes)
       - name: Terraform Apply
         id: apply
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.event.pull_request.merged == true
         run: terraform apply -auto-approve        
         continue-on-error: false
 
