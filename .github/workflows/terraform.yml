@@ -114,6 +114,9 @@ jobs:
         run: terraform apply -auto-approve        
         continue-on-error: false
 
+      # FOR DEMO PURPOSES ONLY
+      # This commit and push is only to get the .tfstate files into git post APPLY since
+      # state is stored locally.
       - name: Git commit and merge
         id: git_merge
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
