@@ -1,3 +1,4 @@
+# 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
 
 name: "terraform"
 # This workflow expects will run automatically when a PR is created, updated, or synchronized.
@@ -11,7 +12,7 @@ name: "terraform"
 # ARM_CLIENT_SECRET: 
 # ARM_SUBSCRIPTION_ID: The subscription ID of the customer
 # ARM_TENANT_ID: The tenant ID of the 
-#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
+
 on:
   push:
     branches:
@@ -111,46 +112,12 @@ jobs:
         id: apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: terraform apply -auto-approve        
-        continue-on-error: true
+        continue-on-error: false
 
-      # Write the resulting plan back to the PR
-      - name: Update Pull Request With Plan and Apply Results
-        id: update_pr_apply
+      - name: Git commit and merge
+        id: git_merge
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: actions/github-script@0.9.0
-        env:
-          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
-          APPLY: "terraform\n${{ steps.apply.outputs.stdout }}"
-        with:
-          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          script: |
-            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
-            #### Terraform Initialization: \`${{ steps.init.outcome }}\`
-            #### Terraform Validation: \`${{ steps.validate.outcome }}\`
-            #### Terraform Plan: \`${{ steps.plan.outcome }}\`
-            #### Terraform Apply: \`${{ steps.apply.outcome }}\`
+        run: |
+          echo "Merging to master" && git add . && git commit -m"Auto merge from workflow" && git push
 
-            <details><summary>Show Plan</summary>
-
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-
-            </details>
-
-            <details><summary>Show Apply Results</summary>
-
-            \`\`\`\n
-            ${process.env.Apply}
-            \`\`\`
-
-            </details>
-
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-
-            github.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
+      
