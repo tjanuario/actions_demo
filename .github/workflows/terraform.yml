@@ -27,7 +27,6 @@ on:
 jobs:
   terraform:
     name: 'Terraform'
-    if: github.event.pull_request.merged == true || github.event.pull_request.closed == false
     runs-on: ubuntu-latest
     env:
       TF_IN_AUTOMATION: "true" # any non-empty value to set
@@ -116,7 +115,7 @@ jobs:
       # A branch protection should *ALSO* be set to only allow merges (no direct pushes)
       - name: Terraform Apply
         id: apply
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.event.pull_request.merged == true
         run: terraform apply -auto-approve        
         continue-on-error: false
 
