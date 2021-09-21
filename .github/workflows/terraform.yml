@@ -49,7 +49,7 @@ jobs:
 
       # Ensure that the terraform code follows best practices
       - name: Terraform Format
-        id: fmt
+        id: format
         run: terraform fmt -check
       
       # Initialize terraform to ensure all providers/plugins are current
@@ -114,6 +114,9 @@ jobs:
         run: terraform apply -auto-approve        
         continue-on-error: false
 
+      # FOR DEMO PURPOSES ONLY
+      # This commit and push is only to get the .tfstate files into git post APPLY since
+      # state is stored locally.
       - name: Git commit and merge
         id: git_merge
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
