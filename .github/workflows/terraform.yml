@@ -14,14 +14,19 @@ name: "terraform"
 # ARM_TENANT_ID: The tenant ID of the 
 
 on:
-  push:
-    branches:
-      - main
+  #push:
+  #  branches:
+  #    - main
   pull_request:
+    - opened
+    - synchronize
+    - reopened
+    - closed
 
 jobs:
   terraform:
     name: 'Terraform'
+    if: github.event.pull_request.merged == true || github.event.pull_request.closed == false
     runs-on: ubuntu-latest
     env:
       TF_IN_AUTOMATION: "true" # any non-empty value to set
