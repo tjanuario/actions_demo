@@ -1,2 +1,5 @@
-resource "null_resource" "cluster" {
+resource "null_resource" "null_object" {
+}
+
+resource "null_resource" "null_object2" {
 }
