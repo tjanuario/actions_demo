@@ -39,7 +39,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       
-      - name: Setup Terraformsecrets.GH_PERSONAL_ACCESS_TOKEN
+      - name: Setup Terraform
         uses: hashicorp/setup-terraform@v1
         with:
           # terraform_version: 0.13.0
