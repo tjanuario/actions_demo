@@ -90,7 +90,7 @@ jobs:
       
       # Ansible routine has modified some files.  Add all files to git, commit and push to the branch
       - name: Commit changes to feature branch
-        if: ${{ 'true' == 'false && (steps.extract_branch.outputs.branch != 'master') && (steps.extract_branch.outputs.branch != 'main') }}
+        if: ${{ (steps.extract_branch.outputs.branch != 'master') && (steps.extract_branch.outputs.branch != 'main') }}
         uses: EndBug/add-and-commit@v7
         with:
           # The arguments for the `git add` command (see the paragraph below for more info)
