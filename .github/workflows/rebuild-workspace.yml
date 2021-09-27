@@ -1,4 +1,4 @@
-name: "rebuild-workspace"
+name: "Ansible:rebuild-workspace"
 # This workflow expects that you have created a branch which will become the target of workspace updates.  
 #                  -----------        DO NOT RUN THIS FROM MASTER!      -----------
 # Typically, the workflow would be: 1) create branch 2) push updates to account-specific host variable file
@@ -35,15 +35,18 @@ jobs:
     outputs:
       branch: ${{ steps.extract_branch.outputs.branch }}
     steps:
+      # Get the branch name that this workflow is being run against
       - name: Extract branch name
         shell: bash
         run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
         id: extract_branch
 
+      # Print the branch name to the output
       - name: Display branch name
         run: echo "${{ steps.extract_branch.outputs.branch }}"
 
-      - name: Determine inventory
+      # Determine the path to the customer yml file based on inputs and iterpolation
+      - name: Determine Inventory Path
         id: inventory_path
         run:  |
           env=${{ github.event.inputs.environment }}
@@ -52,18 +55,13 @@ jobs:
           echo "::set-output name=inventory_path::$inventory_path"
         if: ${{ github.event.inputs.target_type == 'account' && ((steps.extract_branch.outputs.branch != 'master') && (steps.extract_branch.outputs.branch != 'main')) }}
 
+      # Print the inventory path to the output
       - name: Display Inventory Path
         id: debug_inventory_path
-        run: echo "${{ steps.inventory_path.outputs.inventory_path}}"
+        run: echo "${{ steps.inventory_path.outputs.inventory_path }}"
         if: ${{ github.event.inputs.target_type == 'account' && ((steps.extract_branch.outputs.branch != 'master') && (steps.extract_branch.outputs.branch != 'main')) }}
 
-      #- name: Display Account ID List Results
-      #  id: list_account_ids
-      #  run: |
-      #    echo "${{ steps.ou_account_ids.outputs.account_ids}}"
-      #    echo "${{ steps.ou_account_ids.outputs.account_ids_formatted}}"
-      #  if: ${{ github.event.inputs.target_type == 'environment' && ((steps.extract_branch.outputs.branch != 'master') && (steps.extract_branch.outputs.branch != 'main')) }}
-
+      # Checkout the branch that the workflow is being run against
       - name: Checkout the branch
         uses: actions/checkout@v2
         if: ${{ (steps.extract_branch.outputs.branch != 'master') && (steps.extract_branch.outputs.branch != 'main') }}
@@ -89,3 +87,46 @@ jobs:
             --extra-vars branch=${{ steps.extract_branch.outputs.branch }} 
             --extra-vars "{{ steps.inventory_path.outputs.inventory_path }}" 
             --diff
+      
+      # Ansible routine has modified some files.  Add all files to git, commit and push to the branch
+      - name: Commit changes to feature branch
+        if: ${{ 'true' == 'false && (steps.extract_branch.outputs.branch != 'master') && (steps.extract_branch.outputs.branch != 'main') }}
+        uses: EndBug/add-and-commit@v7
+        with:
+          # The arguments for the `git add` command (see the paragraph below for more info)
+          # Default: '.'
+          add: '.'
+
+          # The name of the user that will be displayed as the author of the commit
+          # Default: depends on the default_author input
+          author_name: GitHub Actions
+
+          # The email of the user that will be displayed as the author of the commit
+          # Default: depends on the default_author input
+          #author_email:
+
+          # Name of the branch to use, if different from the one that triggered the workflow
+          branch: '${{ steps.extract_branch.outputs.branch }}'
+
+          # Determines the way the action fills missing author name and email. Three options are available:
+          # - github_actor -> UserName <UserName@users.noreply.github.com>
+          # - user_info -> Your Display Name <your-actual@email.com>
+          # - github_actions -> github-actions <email associated with the github logo>
+          # Default:
+          default_author: github_actions
+
+          # The message for the commit
+          # Default: 'Commit from GitHub Actions (name of the workflow)'
+          message: |
+            Update ${{ github.event.inputs.account_name }}-${{ github.event.inputs.workspace }}
+            Environment: ${{ github.event.inputs.environment }}
+            Account Name: ${{ github.event.inputs.account_name }}
+            Workspace: ${{ github.event.inputs.workspace }}
+
+          # The flag used on the pull strategy. Use NO-PULL to avoid the action pulling at all.
+          # Default: '--no-rebase'
+          pull_strategy: '--no-rebase'
+
+          # Whether to push the commit and, if any, its tags to the repo. It can also be used to set the git push arguments (see the paragraph below for more info)
+          # Default: true
+          push: true
