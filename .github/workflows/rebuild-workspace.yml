@@ -18,7 +18,7 @@ on:
       account_name:
         description: 'The full name of the account. Only required when target_type = account'
         required: false
-        default: 'az-westus-ucsfit-customer1-dev'
+        default: 'ucsfit-customer1'
       workspace:
         description: 'Workspace to rebuild [all | identity | network | security | storage | operations]'
         required: true
@@ -48,7 +48,7 @@ jobs:
         run:  |
           env=${{ github.event.inputs.environment }}
           account_name=${{ github.event.inputs.account_name }}
-          inventory_path="@./inventories/$env/group_vars/accounts/$account_name.yml"
+          inventory_path="@./inventories/$env/group_vars/accounts/az-westus-$account_name-$env.yml"
           echo "::set-output name=inventory_path::$inventory_path"
         if: ${{ github.event.inputs.target_type == 'account' && ((steps.extract_branch.outputs.branch != 'master') && (steps.extract_branch.outputs.branch != 'main')) }}
 
