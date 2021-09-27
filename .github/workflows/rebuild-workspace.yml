@@ -1,0 +1,91 @@
+name: "rebuild-workspace"
+# This workflow expects that you have created a branch which will become the target of workspace updates.  
+#                  -----------        DO NOT RUN THIS FROM MASTER!      -----------
+# Typically, the workflow would be: 1) create branch 2) push updates to account-specific host variable file
+# 3) run this job to update/rebuild the Terraform workspace(s) based upon changes to the account.yml file
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Define environment: [dev | prod]'
+        required: true
+        default: 'dev'
+      target_type:
+        description: 'Target type [account | environment]'
+        required: true
+        default: 'account'
+      account_name:
+        description: 'The full name of the account. Only required when target_type = account'
+        required: false
+        default: 'az-westus-ucsfit-customer1-dev'
+      workspace:
+        description: 'Workspace to rebuild [all | identity | network | security | storage | operations]'
+        required: true
+        default: 'identity'
+      account_type:
+        description: 'Account Type: [hipaa | it-svcs]'
+        required: true
+        default: 'hipaa'
+
+jobs:
+  rebuild_terraform_workspace:
+    name: "rebuild-workspace"
+    runs-on: ubuntu-latest
+    outputs:
+      branch: ${{ steps.extract_branch.outputs.branch }}
+    steps:
+      - name: Extract branch name
+        shell: bash
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        id: extract_branch
+
+      - name: Display branch name
+        run: echo "${{ steps.extract_branch.outputs.branch }}"
+
+      - name: Determine inventory
+        id: inventory_path
+        run:  |
+          env=${{ github.event.inputs.environment }}
+          account_name=${{ github.event.inputs.account_name }}
+          inventory_path="@./inventories/$env/group_vars/accounts/$account_name.yml"
+          echo "::set-output name=inventory_path::$inventory_path"
+        if: ${{ github.event.inputs.target_type == 'account' && ((steps.extract_branch.outputs.branch != 'master') && (steps.extract_branch.outputs.branch != 'main')) }}
+
+      - name: Display Inventory Path
+        id: debug_inventory_path
+        run: echo "${{ steps.inventory_path.outputs.inventory_path}}"
+        if: ${{ github.event.inputs.target_type == 'account' && ((steps.extract_branch.outputs.branch != 'master') && (steps.extract_branch.outputs.branch != 'main')) }}
+
+      #- name: Display Account ID List Results
+      #  id: list_account_ids
+      #  run: |
+      #    echo "${{ steps.ou_account_ids.outputs.account_ids}}"
+      #    echo "${{ steps.ou_account_ids.outputs.account_ids_formatted}}"
+      #  if: ${{ github.event.inputs.target_type == 'environment' && ((steps.extract_branch.outputs.branch != 'master') && (steps.extract_branch.outputs.branch != 'main')) }}
+
+      - name: Checkout the branch
+        uses: actions/checkout@v2
+        if: ${{ (steps.extract_branch.outputs.branch != 'master') && (steps.extract_branch.outputs.branch != 'main') }}
+        with:
+          ref: ${{ steps.extract_branch.outputs.branch }}
+
+      # Run Ansible playbook to rebuild the specified workspace(s)
+      - name: 'Run Ansible playbook az-account-creation.yml'
+        if: ${{ github.event.inputs.target_type == 'account' && ((steps.extract_branch.outputs.branch != 'master') && (steps.extract_branch.outputs.branch != 'main')) }}
+        uses: dawidd6/action-ansible-playbook@v2
+        with:
+          playbook: az-account-creation.yml
+          directory: ./Ansible/playbooks/
+          key:
+          inventory: |
+            [all]
+            localhost=127.0.0.1
+          options: |
+            --extra-vars ansible_action=base 
+            --extra-vars hub_env=${{ github.event.inputs.environment }} 
+            --extra-vars account_type=${{ github.event.inputs.account_type }} 
+            --extra-vars git_dir="../../" 
+            --extra-vars branch=${{ steps.extract_branch.outputs.branch }} 
+            --extra-vars "{{ steps.inventory_path.outputs.inventory_path }}" 
+            --diff
