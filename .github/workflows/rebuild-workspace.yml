@@ -48,5 +48,5 @@ jobs:
       # Print the inventory path to the output
       - name: Display Inventory Path
         id: debug_inventory_path
-        run: echo "${{ steps.inventory_path.outputs.inventory_path }}"
+        run: echo "${{ steps.inventory_path.outputs.customer_files }}"
         if: ${{ github.event.inputs.target_type == 'account' && ((steps.extract_branch.outputs.branch != 'master') && (steps.extract_branch.outputs.branch != 'main')) }}
