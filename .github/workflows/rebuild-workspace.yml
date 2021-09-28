@@ -41,7 +41,7 @@ jobs:
         run:  |
           env=${{ github.event.inputs.environment }}
           path="./inventories/$env/group_vars/accounts"
-          set -A files *       
+          files=(`ls`)  
           echo "::set-output name=customer_files::${files}"
         if: ${{ github.event.inputs.target_type == 'account' && ((steps.extract_branch.outputs.branch != 'master') && (steps.extract_branch.outputs.branch != 'main')) }}
 
