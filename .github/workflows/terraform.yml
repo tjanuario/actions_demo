@@ -53,6 +53,7 @@ jobs:
                     console.log(`workspace: ${commandArray[2]}`)
                     console.log("::set-output name=do_apply::true");
                   } else {
+                    console.log(`workspace: ${commandArray[2]}`)
                     console.log("apply command is not for this workspace");
                   }
                   break;
@@ -63,6 +64,7 @@ jobs:
                     console.log(`workspace: ${commandArray[2]}`)
                     console.log("::set-output name=do_plan::true")
                   } else {
+                    console.log(`workspace: ${commandArray[2]}`)
                     console.log("plan command is not for this workspace")
                   }
                   break;
@@ -77,6 +79,8 @@ jobs:
                     console.log("::set-output name=do_unlock::true")
                   } 
                   else {
+                    console.log(`lock-id: ${commandArray[2]}`)
+                    console.log(`workspace: ${commandArray[3]}`)
                     console.log("force-unlock command is not for this workspace")
                   }
                   break
