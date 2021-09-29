@@ -37,8 +37,7 @@ jobs:
           TF_ROOT: ${{ matrix.terraform_roots }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            console.log(context)            
+          script: |            
             const body = context.payload.comment.body.toLowerCase().trim()
             console.log("Detected PR comment: " + body)
             console.log("This job is for workspace " + process.env.TF_ROOT)
@@ -89,4 +88,5 @@ jobs:
             else {
               console.log("Detected non-applicable command. Job will not continue.")
             }
+            console.log(context)
           
