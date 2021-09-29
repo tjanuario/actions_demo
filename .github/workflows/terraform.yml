@@ -47,43 +47,6 @@ jobs:
               action = commandArray[1]
               console.log(`action: ${commandArray[1]}`)
 
-              switch(action) {
-                case "apply":
-                  if(typeof commandArray[2] === 'undefined') {
-                    console.log("::set-output name=do_apply::true")
-                  } else if (commandArray[2] == process.env.TF_ROOT.toLowerCase()) {
-                    console.log("::set-output name=do_apply::true")
-                  } else {
-                    console.log("apply command is not for this Terraform root")
-                  }
-                  break
-                case "plan":
-                  if(typeof commandArray[2] === 'undefined') {
-                    console.log("::set-output name=do_plan::true")
-                  } else if (commandArray[2] == process.env.TF_ROOT.toLowerCase()) {
-                    console.log("::set-output name=do_plan::true")
-                  } else {
-                    console.log("plan command is not for this Terraform root")
-                  }
-                  break
-                case "force-unlock":
-                  if(typeof commandArray[2] === 'undefined' || commandArray[3] === 'undefined') {
-                    console.log("force-unlock command must have lock-id and Terraform root")
-                    break
-                  } 
-                  lockid = commandArray[2]
-                  tfroot = commandArray[3]
-                  
-                  if (commandArray[3] == process.env.TF_ROOT.toLowerCase()) {
-                    console.log(`lock-id: ${lockid}`)
-                    console.log("::set-output name=state_lock_id::${lockid}")
-                    console.log("::set-output name=do_unlock::true")
-                  } else {
-                    console.log("force-unlock command is not for this Terraform root")
-                  }
-                  break
-                }
-              }  
               
             } 
             else {
