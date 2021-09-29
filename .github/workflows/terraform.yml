@@ -46,7 +46,16 @@ jobs:
             if (commandArray[0] == "terraform") {
               action = commandArray[1]
               console.log(`action: ${commandArray[1]}`)
-
+              switch(action) {
+                case "apply":
+                  if (typeof commandArray[2] === 'undefined') {
+                    console.log("::set-output name=do_apply::true");
+                  } else if (commandArray[2] == process.env.TF_ROOT.toLowerCase()) {
+                    console.log("::set-output name=do_apply::true");
+                  } else {
+                    console.log("apply command is not for this Terraform root");
+                  }
+                  break;
             } 
             else {
               console.log("Detected non-applicable command. Job will not continue.")
