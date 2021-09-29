@@ -57,8 +57,5 @@ jobs:
                     console.log("apply command is not for this Terraform root");
                   }
                   break;
-            } 
-            else {
-              console.log("Detected non-applicable command. Job will not continue.")
             }
           
