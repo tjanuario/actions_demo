@@ -49,7 +49,7 @@ jobs:
 
               switch(action) {
                 case "apply":
-                  if(typeof commandArray[2] === 'undefined') {
+                  if (typeof commandArray[2] === 'undefined') {
                     console.log("::set-output name=do_apply::true");
                   } else if (commandArray[2] == process.env.TF_ROOT.toLowerCase()) {
                     console.log("::set-output name=do_apply::true");
@@ -57,9 +57,6 @@ jobs:
                     console.log("apply command is not for this Terraform root");
                   }
                   break;
-                default:
-                  console.log("Only plan, apply, and force-unlock supported for terraform. Job will not continue.")
-                  break
             } 
             else {
               console.log("Detected non-applicable command. Job will not continue.")
