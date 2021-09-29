@@ -44,45 +44,7 @@ jobs:
             console.log("This job is for workspace " + process.env.TF_ROOT)
             commandArray = body.split(/\s+/)
             if (commandArray[0] == "terraform") {
-              action = commandArray[1]
-              console.log(`action: ${commandArray[1]}`)
-
-              switch(action) {
-                case "apply":
-                  if(typeof commandArray[2] === 'undefined') {
-                    console.log("::set-output name=do_apply::true")
-                  } else if (commandArray[2] == process.env.TF_ROOT.toLowerCase()) {
-                    console.log("::set-output name=do_apply::true")
-                  } else {
-                    console.log("apply command is not for this Terraform root")
-                  }
-                  break
-                case "plan":
-                  if(typeof commandArray[2] === 'undefined') {
-                    console.log("::set-output name=do_plan::true")
-                  } else if (commandArray[2] == process.env.TF_ROOT.toLowerCase()) {
-                    console.log("::set-output name=do_plan::true")
-                  } else {
-                    console.log("plan command is not for this Terraform root")
-                  }
-                  break
-                case "force-unlock":
-                  if(typeof commandArray[2] === 'undefined' || commandArray[3] === 'undefined') {
-                    console.log("force-unlock command must have lock-id and Terraform root")                    
-                  }                   
-                  else if (commandArray[3] == process.env.TF_ROOT.toLowerCase()) {
-                    console.log(`lock-id: ${commandArray[3]}`)
-                    console.log("::set-output name=state_lock_id::${commandArray[3]}")
-                    console.log("::set-output name=do_unlock::true")
-                  } 
-                  else {
-                    console.log("force-unlock command is not for this Terraform root")
-                  }
-                  break
-              }  
-              else {
-                console.log("Only plan, apply, and force-unlock supported for terraform. Job will not continue.")
-              }
+              
             } 
             else {
               console.log("Detected non-applicable command. Job will not continue.")
