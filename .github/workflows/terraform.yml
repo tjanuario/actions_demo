@@ -50,22 +50,13 @@ jobs:
               switch(action) {
                 case "apply":
                   if(typeof commandArray[2] === 'undefined') {
-                    console.log("::set-output name=do_apply::true")
+                    console.log("::set-output name=do_apply::true");
                   } else if (commandArray[2] == process.env.TF_ROOT.toLowerCase()) {
-                    console.log("::set-output name=do_apply::true")
+                    console.log("::set-output name=do_apply::true");
                   } else {
-                    console.log("apply command is not for this Terraform root")
+                    console.log("apply command is not for this Terraform root");
                   }
-                  break
-                case "plan":
-                  if(typeof commandArray[2] === 'undefined') {
-                    console.log("::set-output name=do_plan::true")
-                  } else if (commandArray[2] == process.env.TF_ROOT.toLowerCase()) {
-                    console.log("::set-output name=do_plan::true")
-                  } else {
-                    console.log("plan command is not for this Terraform root")
-                  }
-                  break
+                  break;
                 default:
                   console.log("Only plan, apply, and force-unlock supported for terraform. Job will not continue.")
                   break
