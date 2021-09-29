@@ -45,9 +45,8 @@ jobs:
             commandArray = body.split(/\s+/)
             if (commandArray[0] == "terraform") {
               action = commandArray[1]
-              console.log("action: ${commandArray[1]}")
+              console.log(`action: ${commandArray[1]}`)
 
-              
             } 
             else {
               console.log("Detected non-applicable command. Job will not continue.")
