@@ -73,7 +73,7 @@ jobs:
                     console.log("force-unlock command must have lock-id and workspace")                    
                   }                   
                   else if (commandArray[3] == process.env.TF_ROOT.toLowerCase()) {
-                    console.log("::set-output name=state_lock_id::" + commandArray[3])
+                    console.log("::set-output name=state_lock_id::" + commandArray[2])
                     console.log("::set-output name=do_unlock::true")
                   } 
                   else {
