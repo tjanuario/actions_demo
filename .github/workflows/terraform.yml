@@ -79,7 +79,7 @@ jobs:
                     console.log("force-unlock command is not for this Terraform root")
                   }
                   break
-                case default:
+                default:
                   console.log("Only plan, apply, and force-unlock supported for terraform. Job will not continue.")
                   break
             } 
