@@ -1,124 +1,587 @@
 name: "terraform"
-# This workflow expects will run automatically when a PR is created, updated, or synchronized.
-# Those events cause a terraform plan to be exeucuted and the results of the plan are added
-# to the PR as a comment.  Until the plan phase succeeds, the PR cannont be be merged into
-# the source branch (generally master).  Once the plan phase succeeds, the final merge
-# becomes available and upon merge, the terraform apply phase is executed.
+# This workflow expects will run automatically when a PR is created, updated, or synchronized
+# OR when manually triggered by "terraform plan" / "terraform apply" issue comments.
+# It first determines the (Terraform) files that have been modified, creates a matrix of
+# corresponding Terraform root module directories (workspaces), and runs the terraform plan
+# and/or apply cycle operations for each root module that has been added/changed.
 
-#Env Vars:
-# ARM_CLIENT_ID: 
-# ARM_CLIENT_SECRET: 
-# ARM_SUBSCRIPTION_ID: The subscription ID of the customer
-# ARM_TENANT_ID: The tenant ID of the 
-
-on:
-  push:
-    branches:
-      - main
+on: 
   pull_request:
+    branches: [ master ]
+    types: [opened, synchronize, reopened]
+    paths:
+      - "Terraform/**"
+  issue_comment:
+    types: [created]
 
-jobs:
-  terraform:
-    name: 'Terraform'
-    runs-on: ubuntu-latest
+ 
+jobs: 
+  # This job executes terraform init, fmt, validate, and plan when a PR is created
+  # and on subsequent commits to the same PR branch. This workflow detects file changes
+  # and only runs when ".tf" files within the workspace have been modified.
+  pr_changed_workspaces:
+    runs-on: self-hosted
+    if: ${{ github.event_name != 'issue_comment' }} 
     env:
       TF_IN_AUTOMATION: "true" # any non-empty value to set
+    outputs:
+      roots: ${{ steps.display_file_changes.outputs.unique_roots }}
+
     steps:
-      # Check out the repository
-      - name: Checkout
-        id: checkout
+      # Determine which files changed as part of the PR to conditionally run TF tasks
+      - name: (PR) Determine file changes
+        uses: dorny/paths-filter@v2.10.2
+        id: file_changes
+        with:
+          filters: |
+            dev: 'Terraform/dev/**'
+            test: 'Terraform/test/**'
+            prod: 'Terraform/prod/**'
+            all: 'Terraform/**'
+          list-files: json
+          token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+
+        # Determine the changed files, remove file extensions (to determine Terraform
+        # root directory path), deduplicate root paths to ensure single run of the
+        # TF root/workspace, and reformat the result into a matrix-compatible output
+      - name: Display changed files JSON
+        id: display_file_changes
+        run: |
+          echo '${{ steps.file_changes.outputs.files }}'
+          echo '${{ steps.file_changes.outputs.changes }}'
+          echo '${{ steps.file_changes.outputs.all_files }}'
+          touch roots.txt
+          echo '${{ steps.file_changes.outputs.all_files }}' | sed -r 's/(\/[a-z|A-Z]+(.tf|.tfvars|.auto.tfvars|.json))//g' > roots.txt
+          touch unique_roots.txt
+          jq unique roots.txt > unique_roots.txt
+          cat unique_roots.txt | tr -d '\n' | tr -d ' ' > matrix.txt
+          echo "::set-output name=unique_roots::$(cat matrix.txt)"
+          rm roots.txt
+          rm unique_roots.txt
+          rm matrix.txt
+      - name: Debug target Terraform roots
+        run: |
+          echo '${{ steps.display_file_changes.outputs.unique_roots }}'
+
+  issue_comment_changed_workspaces:
+    runs-on: self-hosted
+    if: ${{ github.event_name == 'issue_comment' }}
+    env:
+      TF_IN_AUTOMATION: "true" # any non-empty value to set
+    outputs:
+      roots: ${{ steps.display_file_changes.outputs.unique_roots }}
+
+    steps:
+      # Checks-out your repository from the PR's branch
+      - name: Checkout Repository
         uses: actions/checkout@v2
-      
-      # Set git configuration variables
+
+        # Because issue_comment actions always reference the main/master branch,
+        # we must determine the PR branch to use it as an explicit ref
+      - name: Get PR Branch
+        uses: actions/github-script@v3
+        if: ${{ github.event_name == 'issue_comment' }}
+        id: get_pr
+        with:
+          script: |
+            const request = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            }
+            core.info(`Getting PR #${request.pull_number} from ${request.owner}/${request.repo}`)
+            try {
+              const result = await github.pulls.get(request)
+              return result.data
+            } catch (err) {
+              core.setFailed(`Request failed with error ${err}`)
+            }
+      # If the trigger was an issue/PR comment, determine which files changed
+      - name: (COMMENT) Determine file changes
+        uses: dorny/paths-filter@v2.10.2
+        id: file_changes
+        if: ${{ github.event_name == 'issue_comment' }}
+        with:
+          filters: |
+            dev: 'Terraform/dev/**'
+            test: 'Terraform/test/**'
+            prod: 'Terraform/prod/**'
+            all: 'Terraform/**'
+          list-files: json
+          ref: ${{ fromJSON(steps.get_pr.outputs.result).head.sha }}
+          #base: 
+          token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+
+
+        # Determine the changed files, remove file extensions (to determine Terraform
+        # root directory path), deduplicate root paths to ensure single run of the
+        # TF root/workspace, and reformat the result into a matrix-compatible output
+      - name: Display changed files JSON
+        id: display_file_changes
+        run: |
+          echo '${{ steps.file_changes.outputs.files }}'
+          echo '${{ steps.file_changes.outputs.changes }}'
+          echo '${{ steps.file_changes.outputs.all_files }}'
+          touch roots.txt
+          echo '${{ steps.file_changes.outputs.all_files }}' | sed -r 's/(\/[a-z|A-Z]+(.tf|.tfvars|.auto.tfvars|.json))//g' > roots.txt
+          touch unique_roots.txt
+          jq unique roots.txt > unique_roots.txt
+          cat unique_roots.txt | tr -d '\n' | tr -d ' ' > matrix.txt
+          echo "::set-output name=unique_roots::$(cat matrix.txt)"
+          rm roots.txt
+          rm unique_roots.txt
+          rm matrix.txt
+      - name: Debug target Terraform roots
+        run: |
+          echo '${{ steps.display_file_changes.outputs.unique_roots }}'
+
+  pr_tf_run:
+    name: "pr_tf_run"
+    runs-on: self-hosted
+    if: ${{ github.event_name != 'issue_comment' }}
+    needs: [ pr_changed_workspaces ]
+    env:
+      TF_IN_AUTOMATION: "true" # any non-empty value to set
+    strategy:
+      fail-fast: false
+      #max-parallel: 256
+      matrix: 
+        terraform_roots: ${{ fromJson(needs.pr_changed_workspaces.outputs.roots) }}
+    steps:
+      - name: Checkout repository branch
+        uses: actions/checkout@v2
+
+      # Get the Subscription_ID from accounts/terraform.auto.tfvars
+      - name: Get-SubscriptionID
+        id: subscription_id
+        run: |
+          cd ./${{ matrix.terraform_roots }}
+          cd ../account
+          input_file="terraform.auto.tfvars"
+          while read y
+          do
+            if [[ $y =~ "subscription_id" ]]; then
+              subscription_id=$(echo $y | sed 's/subscription_id//i' | sed 's/=//;s/"//;s/"//;s/ //g')
+              echo "::set-output name=subscription_id::$subscription_id"
+            fi
+          done < "$input_file"
+      # Get the runner's IP address
+#       - name: Get-RunnersIP
+#         id: runners_ip
+#         run: |
+#           ip=$(curl -s https://api.ipify.org)
+#           ip_formatted=$(echo $ip |sed 's/}//;s/{//;s/ip//;s/://g;s/"//g')
+#           echo "::set-output name=ip_formatted::$ip_formatted"
+#           echo $ip_formatted
+          
+      # Downloads and installs Terraform binaries, using the terraform_version specified
+#       - name: Install and configure Terraform
+#         uses: hashicorp/setup-terraform@v1
+#         with:
+#           cli_config_credentials_token: ${{ secrets.CLI_CONFIG_CREDENTIALS_TOKEN }}
+
       - name: Configure multi-repo credential substitution
         run: |
           git config --local user.name "ucsf-devops-bot"
-          git config --local url."https://${GH_TOKEN}@github.com/UCSF-DevOps".insteadOf "https://github.com/UCSF-DevOps"
+          git config --local url."https://${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}@github.com/UCSF-DevOps".insteadOf "https://github.com/UCSF-DevOps"
           git config --global user.name "ucsf-devops-bot"
-          git config --global url."https://${GH_TOKEN}@github.com/UCSF-DevOps".insteadOf "https://github.com/UCSF-DevOps"
+          git config --global url."https://${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}@github.com/UCSF-DevOps".insteadOf "https://github.com/UCSF-DevOps"
         env:
           GH_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-      
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v1
-        with:
-          # terraform_version: 0.13.0
-          cli_config_credentials_token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
 
-      # Ensure that the terraform code follows best practices
-      - name: Terraform Format
-        id: fmt
-        run: terraform fmt -check
-      
-      # Initialize terraform to ensure all providers/plugins are current
-      - name: Terraform Init
+#       # Ensure all Terraform files are properly formatted
+#       - name: terraform fmt
+#         id: fmt
+#         #if: ${{ contains(steps.file_changes.outputs.files, '.tf') }}
+#         run: |
+#           cd ./${{ matrix.terraform_roots }}
+#           terraform fmt --check
+#         continue-on-error: true
+
+      # Change to workspace's directory and run 'terrafrom init'
+      - name: terraform init
         id: init
-        run: terraform init
-      
-      # Validate the terraform configuration
-      - name: Terraform Validate
-        id: validate
-        run: terraform validate -no-color
-      
-      # Execute the planning phase of terraform
-      - name: Terraform Plan
-        id: plan
-        run: terraform plan -no-color
-        continue-on-error: true
-      
-      # Write the resulting plan back to the PR
-      - name: Update Pull Request With Plan
-        id: update_pr_plan
-        uses: actions/github-script@0.9.0
-        if: github.event_name == 'pull_request'
+        #if: ${{ contains(steps.file_changes.outputs.files, '.tf') }}
+        run: |
+          cd ./${{ matrix.terraform_roots }}
+          terraform init
         env:
-          PLAN: "TERRAFORM PLAN\n${{ steps.plan.outputs.stdout }}"
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ steps.subscription_id.outputs.subscription_id }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ""
+          AWS_REGION: us-west-2   
+
+      # Change to workspace's directory and run 'terrafrom validate'
+      - name: terraform validate
+        id: validate
+        #if: ${{ contains(steps.file_changes.outputs.files, '.tf') }}
+        run: |
+          cd ./${{ matrix.terraform_roots }}
+          terraform validate
+      # Change to workspace's directory and run 'terrafrom plan'
+      - name: terraform plan
+        id: plan
+        #if: ${{ contains(steps.file_changes.outputs.files, '.tf') }}
+        run: |
+          cd ./${{ matrix.terraform_roots }}
+          #terraform force-unlock -force 1aa07978-1b2b-1526-a432-f237f42de491
+          #terraform plan -var 'runner_ip_address=${{ steps.runners_ip.outputs.ip_formatted }}'
+          terraform plan                    
+        continue-on-error: true
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ steps.subscription_id.outputs.subscription_id }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ""
+          AWS_REGION: us-west-2
+
+      # Comment the results of Terraform operations back to the PR
+      - name: Comment Results
+        uses: actions/github-script@v3
+        #if: (github.event_name == 'pull_request') && (${{ contains(steps.file_changes.outputs.files, '.tf') }})
+        env:
+          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
         with:
-          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const output = `#### Terraform Format and Style: \`${{ steps.fmt.outcome }}\`
-            #### Terraform Initialization: \`${{ steps.init.outcome }}\`
-            #### Terraform Plan: \`${{ steps.plan.outcome }}\`
-            #### Terraform Validation: \`${{ steps.validate.outcome }}\`
-
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖${{ steps.validate.outputs.stdout }}
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
             <details><summary>Show Plan</summary>
-
-            \`\`\`\n
+            \`\`\`
             ${process.env.PLAN}
             \`\`\`
-
             </details>
-
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ matrix.terraform_roots }}\`, Workflow: \`${{ github.workflow }}\`*`;
             github.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: output
             })
-      
-      # If the plan status is failure, 
+
+      # If the terraform plan failed, we continued in order to add the output to the PR but the job
+      # should still fail.  This ensures that the job fails under those conditions.    
       - name: On Terraform Plan Failure
         id: on_failure
-        if: steps.plan.outcome == 'failure'
+        if: steps.plan.outcome == 'failure' 
         run: exit 1
-      
-      # If this is a push to master, execute the apply phase of terraform
-      # A branch protection should *ALSO* be set to only allow merges (no direct pushes)
-      - name: Terraform Apply
-        id: apply
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: terraform apply -auto-approve        
-        continue-on-error: false
+   
+  manual_tf_run:
+    name: "manual_tf_run"
+    runs-on: self-hosted
+    if: ${{ github.event_name == 'issue_comment' }}
+    needs: [ issue_comment_changed_workspaces ]
+    strategy:
+      fail-fast: false
+      #max-parallel: 256
+      matrix: 
+        terraform_roots: ${{ fromJson(needs.issue_comment_changed_workspaces.outputs.roots) }}
+    steps:
+      - name: Determine Command
+        id: determine-command
+        uses: actions/github-script@v3
+        #if: (steps.workspace_changed.outputs.workspace_changed)
+        env:
+          TF_ROOT: ${{ matrix.terraform_roots }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            console.log(context)
+            if ((context.payload.action != 'opened') && (context.payload.action != 'synchronize') && (context.payload.action != 'reopened')) {
+              const body = context.payload.comment.body.toLowerCase().trim()
+              console.log("Detected PR comment: " + body)
+              console.log("This job is for workspace " + process.env.TF_ROOT)
+              commandArray = body.split(/\s+/)
+              if (commandArray[0] == "terraform") {
+                action = commandArray[1]
+                console.log(`action: ${commandArray[1]}`)
+                
+                switch(action) {
+                  case "apply":
+                    if(typeof commandArray[2] === 'undefined') {
+                      console.log("::set-output name=do_apply::true")
+                    } else if (commandArray[2] == process.env.TF_ROOT.toLowerCase()) {
+                      console.log("::set-output name=do_apply::true")
+                    } else {
+                      console.log("apply command is not for this Terraform root")
+                    }
+                    break
+                  case "plan":
+                    if(typeof commandArray[2] === 'undefined') {
+                      console.log("::set-output name=do_plan::true")
+                    } else if (commandArray[2] == process.env.TF_ROOT.toLowerCase()) {
+                      console.log("::set-output name=do_plan::true")
+                    } else {
+                      console.log("plan command is not for this Terraform root")
+                    }
+                    break
+                  case "force-unlock":
+                    if(typeof commandArray[2] === 'undefined' || commandArray[3] === 'undefined') {
+                      console.log("force-unlock command must have lock-id and Terraform root")
+                      break
+                    } 
+                    lockid = commandArray[2]
+                    tfroot = commandArray[3]
+                    
+                    if (commandArray[3] == process.env.TF_ROOT.toLowerCase()) {
+                      console.log(`lock-id: ${lockid}`)
+                      console.log("::set-output name=state_lock_id::${lockid}")
+                      console.log("::set-output name=do_unlock::true")
+                    } else {
+                      console.log("force-unlock command is not for this Terraform root")
+                    }
+                    break
+                  }
+                }
+              }
+            }
+            else {
+              console.log("Detected non-applicable command. Job will not continue.")
+            }
 
-      # FOR DEMO PURPOSES ONLY
-      # This commit and push is only to get the .tfstate files into git post APPLY since
-      # state is stored locally.
-      - name: Git commit and merge
-        id: git_merge
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      # Ensure user is authorized to apply (>= write permissions on repo)
+      - name: Check User Permissions
+        id: check_permissions
+        if: ((steps.determine-command.outputs.do_unlock == 'true') || (steps.determine-command.outputs.do_apply == 'true') || (steps.determine-command.outputs.do_plan == 'true'))
+        uses: scherermichael-oss/action-has-permission@master
+        with:
+          required-permission: write
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Use the output from the `check_permissions` step to determine whether user is
+      # authorized to issue Terraform commands (>= write permissions on current repo)
+      - name: User has sufficient permissions
+        if: (steps.check_permissions.outputs.has-permission) && ((steps.determine-command.outputs.do_unlock == 'true') || (steps.determine-command.outputs.do_apply == 'true') || (steps.determine-command.outputs.do_plan == 'true'))
+        run: echo "Congratulations, you have apply permissions. With great power comes great responsibility!"
+
+      - name: User does NOT have sufficient permissions
+        if: (! steps.check_permissions.outputs.has-permission) && ((steps.determine-command.outputs.do_unlock == 'true') || (steps.determine-command.outputs.do_apply == 'true') || (steps.determine-command.outputs.do_plan == 'true'))
+        run: echo "Sorry! Your permissions are insufficient to run 'terraform apply'.  If this is an error, contact the repository administrator to ensure you have write permissions."
+
+        # Because issue_comment actions always reference the main/master branch,
+        # we must determine the PR branch and explicitly check it out
+      - name: Get PR Branch
+        uses: actions/github-script@v3
+        if: (steps.check_permissions.outputs.has-permission) && ((steps.determine-command.outputs.do_apply == 'true') || (steps.determine-command.outputs.do_plan == 'true'))
+        id: get_pr
+        with:
+          script: |
+            const request = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            }
+            core.info(`Getting PR #${request.pull_number} from ${request.owner}/${request.repo}`)
+            try {
+              const result = await github.pulls.get(request)
+              return result.data
+            } catch (err) {
+              core.setFailed(`Request failed with error ${err}`)
+            }
+            
+      # Checks-out your repository from the PR's branch
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+        if: ((steps.determine-command.outputs.do_apply == 'true') || (steps.determine-command.outputs.do_plan == 'true'))
+        with:
+          ref: ${{ fromJSON(steps.get_pr.outputs.result).head.sha }}
+
+      # Get the Subscription_ID from accounts/terraform.auto.tfvars
+      - name: Get-SubscriptionID
+        id: subscription_id
         run: |
-          echo "Merging to master" && git add . && git commit -m"Auto merge from workflow" && git push
+          cd ./${{ matrix.terraform_roots }}
+          cd ../account
+          input_file="terraform.auto.tfvars"
+          while read y
+          do
+            if [[ $y =~ "subscription_id" ]]; then
+              subscription_id=$(echo $y | sed 's/subscription_id//i' | sed 's/=//;s/"//;s/"//;s/ //g')
+              echo "::set-output name=subscription_id::$subscription_id"
+            fi
+          done < "$input_file"
+      # Get the runner's IP address
+#       - name: Get-RunnersIP
+#         id: runners_ip
+#         run: |
+#           ip=$(curl -s https://api.ipify.org)
+#           ip_formatted=$(echo $ip |sed 's/}//;s/{//;s/ip//;s/://g;s/"//g')
+#           echo "::set-output name=ip_formatted::$ip_formatted"
+#           echo $ip_formatted
 
-      
+      # Ensures that private GitHub repos are available as Terraform module sources
+      - name: Configure multi-repo credential substitution
+        run: |
+          git config --local user.name "ucsf-devops-bot"
+          git config --local url."https://${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}@github.com/UCSF-DevOps".insteadOf "https://github.com/UCSF-DevOps"
+          git config --global user.name "ucsf-devops-bot"
+          git config --global url."https://${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}@github.com/UCSF-DevOps".insteadOf "https://github.com/UCSF-DevOps"
+        env:
+          GH_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+        if: ((steps.determine-command.outputs.do_apply == 'true') || (steps.determine-command.outputs.do_plan == 'true'))
+
+      # Downloads and installs Terraform binaries, using the terraform_version specified
+#       - name: Install and configure Terraform
+#         uses: hashicorp/setup-terraform@v1
+#         with:
+#           terraform_version: latest
+#           cli_config_credentials_token: ${{ secrets.CLI_CONFIG_CREDENTIALS_TOKEN }}
+#         if: ((steps.determine-command.outputs.do_apply == 'true') || (steps.determine-command.outputs.do_plan == 'true'))
+
+      # Ensure all Terraform files are properly formatted
+#       - name: terraform fmt
+#         id: fmt
+#         run: |
+#           cd ./${{ matrix.terraform_roots }}
+#           terraform fmt --check
+#         continue-on-error: true
+#         if: ((steps.determine-command.outputs.do_apply == 'true') || (steps.determine-command.outputs.do_plan == 'true'))
+
+      # Change to workspace's directory and run 'terrafrom init'
+      - name: terraform init
+        id: init
+        if: ((steps.determine-command.outputs.do_unlock == 'true') || (steps.determine-command.outputs.do_apply == 'true') || (steps.determine-command.outputs.do_plan == 'true'))
+        run: |
+          cd ./${{ matrix.terraform_roots }}
+          terraform init
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ steps.subscription_id.outputs.subscription_id }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ""
+          AWS_REGION: us-west-2
+
+      # Change to workspace's directory and run 'terrafrom validate'
+      - name: terraform unlock state
+        id: unlock
+        if: (steps.determine-command.outputs.do_unlock == 'true')
+        env:
+          state_lock_id: ${{ steps.determine-command.outputs.state_lock_id }}
+        run: |
+          cd ./${{ matrix.terraform_roots }}
+          terraform force-unlock $state_lock_id
+
+      # Change to workspace's directory and run 'terrafrom validate'
+      - name: terraform validate
+        id: validate
+        if: ((steps.determine-command.outputs.do_apply == 'true') || (steps.determine-command.outputs.do_plan == 'true'))
+        run: |
+          cd ./${{ matrix.terraform_roots }}
+          terraform validate
+
+      # Change to workspace's directory and run 'terrafrom plan'
+      - name: terraform plan
+        id: plan
+        if: ((steps.determine-command.outputs.do_apply == 'true') || (steps.determine-command.outputs.do_plan == 'true'))
+        run: |
+          cd ./${{ matrix.terraform_roots }}
+          #terraform plan -var 'runner_ip_address=${{ steps.runners_ip.outputs.ip_formatted }}'
+          terraform plan          
+        continue-on-error: true
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ steps.subscription_id.outputs.subscription_id }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ""
+          AWS_REGION: us-west-2
+
+      # Runs 'terraform apply' only when PR comment = 'terraform apply' and user has >= write permissions
+      - name: terraform apply 
+        id: apply
+        if: (steps.determine-command.outputs.do_apply == 'true') && (steps.check_permissions.outputs.has-permission)
+        run: |
+          cd ./${{ matrix.terraform_roots }}
+          #terraform apply --auto-approve -var 'runner_ip_address=${{ steps.runners_ip.outputs.ip_formatted }}'
+          terraform apply --auto-approve          
+        continue-on-error: true
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ steps.subscription_id.outputs.subscription_id }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ""
+          AWS_REGION: us-west-2
+
+
+      # Comment the results of Terraform operations back to the PR
+      - name: Comment Results (Plan Only)
+        uses: actions/github-script@v3
+        if: (steps.determine-command.outputs.do_plan == 'true')
+        env:
+          PLAN: "${{ steps.plan.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖${{ steps.validate.outputs.stdout }}
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+            <details><summary>Show Plan</summary>
+            \`\`\`
+            ${process.env.PLAN}
+            \`\`\`
+            </details>
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ matrix.terraform_roots }}\`, Workflow: \`${{ github.workflow }}\`*`;
+            github.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+      # Comment the results of `terraform apply` operations back to the PR
+      - name: Comment Results (Plan + Apply)
+        uses: actions/github-script@v3
+        if: (steps.determine-command.outputs.do_apply == 'true') && (steps.check_permissions.outputs.has-permission)
+        env:
+          PLAN: "${{ steps.plan.outputs.stdout }}"
+          APPLY: "${{ steps.apply.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖${{ steps.validate.outputs.stdout }}
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+            #### Terraform Apply 🔨🚧\`${{ steps.apply.outcome }}\`
+            <details><summary>Show Plan</summary>
+            \`\`\`
+            ${process.env.PLAN}
+            \`\`\`
+            </details>
+            <details><summary>Show Apply</summary>
+            \`\`\`
+            ${process.env.APPLY}
+            \`\`\`
+            </details>
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ matrix.terraform_roots }}\`, Workflow: \`${{ github.workflow }}\`*`;
+            github.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      # If the terraform plan or apply failed, we continued in order to add the output to the PR but the job
+      # should still fail.  This ensures that the job fails under those conditions.
+      - name: On Terraform Plan or Apply Failure
+        id: on_failure
+        if: steps.plan.outcome == 'failure' || steps.apply.outcome == 'failure'
+        run: exit 1
