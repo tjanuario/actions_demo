@@ -22,7 +22,7 @@ jobs:
   
   manual_tf_run:
     name: "manual_tf_run"
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: ${{ github.event_name == 'issue_comment' }}
     strategy:
       fail-fast: false
