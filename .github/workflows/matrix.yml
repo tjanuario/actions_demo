@@ -1,6 +1,12 @@
 
 name: Matrix
-on: workflow_dispatch
+on: 
+  workflow_dispatch:
+    inputs:
+      do-nothing:
+        description: 'does nothing'
+        required: false
+        default: nothing
 jobs:
   matrix-job:
     name: matrix-job
