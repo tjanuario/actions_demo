@@ -1,11 +1,9 @@
 
 name: Matrix
-
 on: workflow_dispatch
-
 jobs:
-  matrix:
-    name: matrix
+  matrix-job:
+    name: matrix-job
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
