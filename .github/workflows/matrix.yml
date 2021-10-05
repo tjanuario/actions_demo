@@ -1,0 +1,19 @@
+
+name: Matrix
+
+on: workflow_dispatch
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: 
+        value: ['one', 'two', 'three', 'four', 'five']
+    steps:
+      test_matrix:
+        id: test
+        run: |
+          sleep 10s
+          echo ${{ matrix.value }}
