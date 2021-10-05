@@ -21,4 +21,6 @@ jobs:
         id: test
         run: |
           sleep 10s
+          now=$(date +"%T")
+          echo "Current time : $now"
           echo ${{ matrix.value }}
