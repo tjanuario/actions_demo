@@ -5,6 +5,7 @@ on: workflow_dispatch
 
 jobs:
   matrix:
+    name: matrix
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -12,7 +13,7 @@ jobs:
       matrix: 
         value: ['one', 'two', 'three', 'four', 'five']
     steps:
-      test_matrix:
+      - name: test_matrix
         id: test
         run: |
           sleep 10s
