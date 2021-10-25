@@ -1,0 +1,15 @@
+name: "test pipeline exit codes"
+
+on:
+  workflow_dispatch:
+  
+jobs:
+  test_pipeline_exitcodes_succeed:
+    - run: |
+      true | false
+      exit ${PIPESTATUS[0]}
+      
+  test_pipeline_exitcodes_fail:
+    - run: |
+      true | false
+      exit ${PIPESTATUS[1]}
