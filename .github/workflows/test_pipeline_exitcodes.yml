@@ -30,6 +30,6 @@ jobs:
     steps:
       - run: |
           false | true
-          EXITCODE=${PIPESTATUS[1]}
+          EXITCODE=${PIPESTATUS[0]}
           echo $EXITCODE
           exit $EXITCODE
