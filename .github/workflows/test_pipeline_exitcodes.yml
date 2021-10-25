@@ -5,11 +5,17 @@ on:
   
 jobs:
   test_pipeline_exitcodes_succeed:
-    - run: |
-      true | false
-      exit ${PIPESTATUS[0]}
+    name: Succeeds
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          true | false
+          exit ${PIPESTATUS[0]}
       
   test_pipeline_exitcodes_fail:
-    - run: |
-      true | false
-      exit ${PIPESTATUS[1]}
+    name: Fails
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          true | false
+          exit ${PIPESTATUS[1]}
