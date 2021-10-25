@@ -10,7 +10,9 @@ jobs:
     steps:
       - run: |
           true | true
-          exit ${PIPESTATUS[0]}
+          EXITCODE=${PIPESTATUS[0]}
+          echo $EXITCODE
+          exit $EXITCODE
       
   test_pipeline_exitcodes_succeed2:
     name: Succeeds2
@@ -18,7 +20,9 @@ jobs:
     steps:
       - run: |
           false | true
-          exit ${PIPESTATUS[1]}
+          EXITCODE=${PIPESTATUS[1]}
+          echo $EXITCODE
+          exit $EXITCODE
           
   test_pipeline_exitcodes_fails:
     name: Fails
@@ -26,4 +30,6 @@ jobs:
     steps:
       - run: |
           false | true
-          exit ${PIPESTATUS[1]}
+          EXITCODE=${PIPESTATUS[1]}
+          echo $EXITCODE
+          exit $EXITCODE
