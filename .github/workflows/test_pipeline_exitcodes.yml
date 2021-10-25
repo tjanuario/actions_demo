@@ -9,13 +9,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          true | false
+          true | true
           #exit ${PIPESTATUS[0]}
       
-  test_pipeline_exitcodes_fail:
+  test_pipeline_exitcodes_succeed2:
+    name: Succeeds2
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          false | true
+          #exit ${PIPESTATUS[1]}
+          
+  test_pipeline_exitcodes_fails:
     name: Fails
     runs-on: ubuntu-latest
     steps:
       - run: |
-          true | false
+          true | true
           #exit ${PIPESTATUS[1]}
