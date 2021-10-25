@@ -10,7 +10,7 @@ jobs:
     steps:
       - run: |
           true | false
-          exit ${PIPESTATUS[0]}
+          #exit ${PIPESTATUS[0]}
       
   test_pipeline_exitcodes_fail:
     name: Fails
@@ -18,4 +18,4 @@ jobs:
     steps:
       - run: |
           true | false
-          exit ${PIPESTATUS[1]}
+          #exit ${PIPESTATUS[1]}
