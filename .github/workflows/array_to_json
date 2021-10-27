@@ -1,0 +1,22 @@
+name: "test pipeline exit codes"
+
+on:
+  workflow_dispatch:
+    inputs:
+      workspaces:
+        description: 'Workspaces to rebuild [ identity | network | security | storage | operations]'
+        required: true
+        default: 'identity, network, security, storage, operations'
+jobs:
+  test_pipeline_exitcodes_succeed:
+    name: Succeeds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v3
+        with:
+          script: |
+            var base_array = '${{ github.event.inputs.workspaces }}'
+            var arr = base_array.split(",").map(function(item) {
+              return item.trim();
+            });
+            return JSON.stringify(arr);
