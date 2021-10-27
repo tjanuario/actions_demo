@@ -3,6 +3,8 @@ name: "array to json"
 on:
   workflow_dispatch:
     inputs:
+      test: 
+        default: '["identity", "network", "security", "storage", "operations"]'
       workspaces:
         description: 'Workspaces to rebuild [ identity | network | security | storage | operations]'
         required: true
@@ -22,7 +24,10 @@ jobs:
               return item.trim();
             });
             return JSON.stringify(arr);
-      - run: echo "${{ steps.array2json.outputs.result }}"
+      - name: print
+        run: |
+          echo "${{ github.event.inputs.test }}"
+          echo "${{ steps.array2json.outputs.result }}"
   matrix_job:
     runs-on: ubuntu-latest    
     needs: [ test_pipeline_exitcodes_succeed ]
