@@ -1,4 +1,4 @@
-name: "test pipeline exit codes"
+name: "array to json"
 
 on:
   workflow_dispatch:
