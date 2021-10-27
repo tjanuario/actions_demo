@@ -23,7 +23,7 @@ jobs:
             var arr = base_array.split(",").map(function(item) {
               return item.trim();
             });
-            return JSON.stringify(arr);
+            return JSON.parse(JSON.stringify(arr));
       - name: print
         run: |
           echo "${{ github.event.inputs.test }}"
