@@ -3,8 +3,8 @@ name: "array to json"
 on:
   workflow_dispatch:
     inputs:
-      test: 
-        default: '["identity", "network", "security", "storage", "operations"]'
+      filter: 
+        default: 'identity, security, invalid'
       workspaces:
         description: 'Workspaces to rebuild [ identity | network | security | storage | operations]'
         required: true
@@ -19,14 +19,22 @@ jobs:
         id: array2json
         with:
           script: |
-            var base_array = '${{ github.event.inputs.workspaces }}'
-            var arr = base_array.split(",").map(function(item) {
+            var filter = '${{ github.event.inputs.filter }}'
+            var filter_array = filter.split(",").map(function(item) {
               return item.trim();
             });
-            return JSON.parse(JSON.stringify(arr));
+            var customers = '${{ github.event.inputs.workspaces }}'
+            var customer_array = filter.split(",").map(function(item) {
+              return item.trim();
+            });
+            if (len(filter_array) > 0) {
+              return  customer_array.filter(item => filter_array.includes(item));
+            }
+            else {
+              return  customer_array
+            }
       - name: print
         run: |
-          echo "${{ github.event.inputs.test }}"
           echo "${{ steps.array2json.outputs.result }}"
   matrix_job:
     runs-on: ubuntu-latest    
