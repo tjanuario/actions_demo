@@ -24,15 +24,10 @@ jobs:
               return item.trim();
             });
             var customers = '${{ github.event.inputs.workspaces }}'
-            var customer_array = filter.split(",").map(function(item) {
+            var customer_array = customers.split(",").map(function(item) {
               return item.trim();
             });
-            if (filter_array.length > 0) {
-              return  customer_array.filter(item => filter_array.includes(item));
-            }
-            else {
-              return  customer_array
-            }
+            return (filter_array.length > 0) ? customer_array.filter(item => filter_array.includes(item)) : customer_array;
       - name: print
         run: |
           echo "${{ steps.array2json.outputs.result }}"
