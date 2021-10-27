@@ -29,3 +29,5 @@ jobs:
       fail-fast: false
       matrix: 
         workflow: ${{ fromJson(needs.test_pipeline_exitcodes_succeed.outputs.workspaces) }}
+    steps:
+      - run: echo "${{ matrix.workflow }}"
