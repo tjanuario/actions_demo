@@ -27,7 +27,7 @@ jobs:
             var customer_array = filter.split(",").map(function(item) {
               return item.trim();
             });
-            if (len(filter_array) > 0) {
+            if (filter_array.length > 0) {
               return  customer_array.filter(item => filter_array.includes(item));
             }
             else {
