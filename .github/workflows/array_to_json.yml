@@ -22,12 +22,13 @@ jobs:
               return item.trim();
             });
             return JSON.stringify(arr);
+      - run: echo "${{ steps.array2json.outputs.result }}"
   matrix_job:
     runs-on: ubuntu-latest    
     needs: [ test_pipeline_exitcodes_succeed ]
     strategy:
       fail-fast: false
       matrix: 
-        workflow: ${{ fromJson(needs.test_pipeline_exitcodes_succeed.outputs.workspaces) }}
+        workspace: ${{ fromJson(needs.test_pipeline_exitcodes_succeed.outputs.workspaces) }}
     steps:
-      - run: echo "${{ matrix.workflow }}"
+      - run: echo "${{ matrix.workspace }}"
