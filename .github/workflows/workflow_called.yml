@@ -4,8 +4,11 @@ on:
   workflow_call:
     inputs:
       variable:
+        type: string
         required: true
 
-  jobs:
-    called:
-      - runs: echo "${{ inputs.variable }}"
+jobs:
+  called:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "${{ inputs.variable }}"
