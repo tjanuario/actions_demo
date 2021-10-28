@@ -1,0 +1,7 @@
+name: workflow-caller
+on: workflow_dispatch
+
+jobs:
+  caller1:
+    steps:
+      - run: echo "Does nothing"
