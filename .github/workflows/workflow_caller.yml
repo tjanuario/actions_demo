@@ -3,5 +3,6 @@ on: workflow_dispatch
 
 jobs:
   caller1:
+    runs-on: ubuntu-latest
     steps:
       - run: echo "Does nothing"
