@@ -3,3 +3,6 @@ resource "null_resource" "null_object" {
     MYSECRET = "${{ secrets.MYSECRET }}"
   }
 }
+
+resource "null_resource" "null_object_another" {
+}
