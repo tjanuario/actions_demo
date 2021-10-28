@@ -3,10 +3,6 @@ on: workflow_dispatch
 
 jobs:
   caller1:
-    uses: tjanuario/actions_demo/.github/workflows/workflow_called@develop
-    with:
-      variable: My variable
-  caller2:
-    uses: tjanuario/actions_demo/.github/workflows/workflow_called@develop
-    with:
-      variable: Another variable
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'does nothing'
