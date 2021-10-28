@@ -1,124 +1,99 @@
 name: "terraform"
-# This workflow expects will run automatically when a PR is created, updated, or synchronized.
-# Those events cause a terraform plan to be exeucuted and the results of the plan are added
-# to the PR as a comment.  Until the plan phase succeeds, the PR cannont be be merged into
-# the source branch (generally master).  Once the plan phase succeeds, the final merge
-# becomes available and upon merge, the terraform apply phase is executed.
+# This workflow expects will run automatically when a PR is created, updated, or synchronized
+# OR when manually triggered by "terraform plan" / "terraform apply" issue comments.
+# It first determines the (Terraform) files that have been modified, creates a matrix of
+# corresponding Terraform root module directories (workspaces), and runs the terraform plan
+# and/or apply cycle operations for each root module that has been added/changed.
 
-#Env Vars:
-# ARM_CLIENT_ID: 
-# ARM_CLIENT_SECRET: 
-# ARM_SUBSCRIPTION_ID: The subscription ID of the customer
-# ARM_TENANT_ID: The tenant ID of the 
-
-on:
-  push:
-    branches:
-      - main
+on: 
   pull_request:
+    branches: [ main ]
+    types: [opened, synchronize, reopened]
+    paths:
+      - "Terraform/**"
+  issue_comment:
+    types: [created]
 
-jobs:
-  terraform:
-    name: 'Terraform'
+ 
+jobs: 
+  # This job executes terraform init, fmt, validate, and plan when a PR is created
+  # and on subsequent commits to the same PR branch. This workflow detects file changes
+  # and only runs when ".tf" files within the workspace have been modified.
+  
+  manual_tf_run:
+    name: "manual_tf_run"
     runs-on: ubuntu-latest
-    env:
-      TF_IN_AUTOMATION: "true" # any non-empty value to set
+    if: ${{ github.event_name == 'issue_comment' }}
+    strategy:
+      fail-fast: false
+      #max-parallel: 256
+      matrix: 
+        terraform_roots: ["this", "that"]
     steps:
-      # Check out the repository
-      - name: Checkout
-        id: checkout
-        uses: actions/checkout@v2
-      
-      # Set git configuration variables
-      - name: Configure multi-repo credential substitution
-        run: |
-          git config --local user.name "ucsf-devops-bot"
-          git config --local url."https://${GH_TOKEN}@github.com/UCSF-DevOps".insteadOf "https://github.com/UCSF-DevOps"
-          git config --global user.name "ucsf-devops-bot"
-          git config --global url."https://${GH_TOKEN}@github.com/UCSF-DevOps".insteadOf "https://github.com/UCSF-DevOps"
+      - name: Determine Command
+        id: determine-command
+        uses: actions/github-script@v3
         env:
-          GH_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-      
-      #- name: Setup Terraform
-      #  uses: hashicorp/setup-terraform@v1
-      #  with:
-      #    # terraform_version: 0.13.0
-      #    cli_config_credentials_token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-
-      # Ensure that the terraform code follows best practices
-      - name: Terraform Format
-        id: fmt
-        run: terraform fmt -check
-      
-      # Initialize terraform to ensure all providers/plugins are current
-      - name: Terraform Init
-        id: init
-        run: terraform init
-      
-      # Validate the terraform configuration
-      - name: Terraform Validate
-        id: validate
-        run: terraform validate -no-color
-      
-      # Execute the planning phase of terraform
-      - name: Terraform Plan
-        id: plan
-        run: terraform plan -no-color
-        continue-on-error: true
-      
-      # Write the resulting plan back to the PR
-      - name: Update Pull Request With Plan
-        id: update_pr_plan
-        uses: actions/github-script@0.9.0
-        if: github.event_name == 'pull_request'
-        env:
-          PLAN: "TERRAFORM PLAN\n${{ steps.plan.outputs.stdout }}"
+          TF_ROOT: ${{ matrix.terraform_roots }}
         with:
-          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          script: |
-            const output = `#### Terraform Format and Style: \`${{ steps.fmt.outcome }}\`
-            #### Terraform Initialization: \`${{ steps.init.outcome }}\`
-            #### Terraform Plan: \`${{ steps.plan.outcome }}\`
-            #### Terraform Validation: \`${{ steps.validate.outcome }}\`
-
-            <details><summary>Show Plan</summary>
-
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-
-            </details>
-
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-
-            github.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
-      
-      # If the plan status is failure, 
-      - name: On Terraform Plan Failure
-        id: on_failure
-        if: steps.plan.outcome == 'failure'
-        run: exit 1
-      
-      # If this is a push to master, execute the apply phase of terraform
-      # A branch protection should *ALSO* be set to only allow merges (no direct pushes)
-      - name: Terraform Apply
-        id: apply
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: terraform apply -auto-approve        
-        continue-on-error: false
-
-      # FOR DEMO PURPOSES ONLY
-      # This commit and push is only to get the .tfstate files into git post APPLY since
-      # state is stored locally.
-      - name: Git commit and merge
-        id: git_merge
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |            
+            const body = context.payload.comment.body.toLowerCase().trim()
+            console.log("Detected PR comment: " + body)
+            console.log("This job is for workspace " + process.env.TF_ROOT)
+            commandArray = body.split(/\s+/)
+            if (commandArray[0] == "terraform") {
+              action = commandArray[1]
+              console.log(`action: ${commandArray[1]}`)
+              switch(action) {
+                case "apply":
+                  console.log(`workspace: ${commandArray[2]}`)
+                  if (typeof commandArray[2] === 'undefined') {
+                    console.log("::set-output name=do_apply::true");
+                  } else if (commandArray[2] == process.env.TF_ROOT.toLowerCase()) {
+                    console.log("::set-output name=do_apply::true");
+                  } else {
+                    console.log("apply command is not for this workspace");
+                  }
+                  break;
+                case "plan":
+                  console.log(`workspace: ${commandArray[2]}`)
+                  if (typeof commandArray[2] === 'undefined') {
+                    console.log("::set-output name=do_plan::true")
+                  } else if (commandArray[2] == process.env.TF_ROOT.toLowerCase()) {
+                    console.log("::set-output name=do_plan::true")
+                  } else {
+                    console.log("plan command is not for this workspace")
+                  }
+                  break;
+                case "force-unlock":
+                  console.log(`lock-id: ${commandArray[2]}`)
+                  console.log(`workspace: ${commandArray[3]}`)
+                  if (typeof commandArray[2] === 'undefined' || typeof commandArray[3] === 'undefined') {
+                    console.log("force-unlock command must have lock-id and workspace")                    
+                  }                   
+                  else if (commandArray[3] == process.env.TF_ROOT.toLowerCase()) {
+                    console.log("::set-output name=state_lock_id::" + commandArray[2])
+                    console.log("::set-output name=do_unlock::true")
+                  } 
+                  else {
+                    console.log("force-unlock command is not for this workspace")
+                  }
+                  break
+                default:
+                  console.log("Only plan, apply, and force-unlock supported for terraform. Job will not continue.")
+                  break
+              }
+            } 
+            else {
+              console.log("Detected non-applicable command. Job will not continue.")
+            }
+            console.log(context)
+          
+      - name: Display output vars
+        id: display_file_changes
         run: |
-          echo "Merging to master" && git add . && git commit -m"Auto merge from workflow" && git push
-
-      
+          echo 'doapply: ${{ steps.determine-command.outputs.do_apply }}'
+          echo 'doplan: ${{ steps.determine-command.outputs.do_plan }}'
+          echo 'dounlock: ${{ steps.determine-command.outputs.do_unlock }}'
+          echo 'unlock_id: ${{ steps.determine-command.outputs.state_lock_id }}'

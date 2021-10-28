@@ -1,0 +1,26 @@
+
+name: Matrix
+on: 
+  workflow_dispatch:
+    inputs:
+      do-nothing:
+        description: 'does nothing'
+        required: false
+        default: nothing
+jobs:
+  matrix-job:
+    name: matrix-job
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: 
+        value: ['one', 'two', 'three', 'four', 'five']
+    steps:
+      - name: test_matrix
+        id: test
+        run: |
+          sleep 10s
+          now=$(date +"%T")
+          echo "Current time : $now"
+          echo ${{ matrix.value }}

@@ -1,0 +1,42 @@
+name: "array to json"
+
+on:
+  workflow_dispatch:
+    inputs:
+      filter: 
+        default: 'identity, security, invalid'
+      workspaces:
+        description: 'Workspaces to rebuild [ identity | network | security | storage | operations]'
+        required: true
+        default: 'identity, network, security, storage, operations'
+jobs:
+  test_pipeline_exitcodes_succeed:
+    runs-on: ubuntu-latest
+    outputs:
+      workspaces: ${{ steps.array2json.outputs.result }}
+    steps:
+      - uses: actions/github-script@v3
+        id: array2json
+        with:
+          script: |
+            var filter = '${{ github.event.inputs.filter }}'
+            var filter_array = filter.split(",").map(function(item) {
+              return item.trim();
+            });
+            var customers = '${{ github.event.inputs.workspaces }}'
+            var customer_array = customers.split(",").map(function(item) {
+              return item.trim();
+            });
+            return (filter_array.length > 0) ? customer_array.filter(item => filter_array.includes(item)) : customer_array;
+      - name: print
+        run: |
+          echo "${{ steps.array2json.outputs.result }}"
+  matrix_job:
+    runs-on: ubuntu-latest    
+    needs: [ test_pipeline_exitcodes_succeed ]
+    strategy:
+      fail-fast: false
+      matrix: 
+        workspace: ${{ fromJson(needs.test_pipeline_exitcodes_succeed.outputs.workspaces) }}
+    steps:
+      - run: echo "${{ matrix.workspace }}"

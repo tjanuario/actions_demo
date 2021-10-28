@@ -1,0 +1,35 @@
+name: "test pipeline exit codes"
+
+on:
+  workflow_dispatch:
+  
+jobs:
+  test_pipeline_exitcodes_succeed:
+    name: Succeeds
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          true | true
+          EXITCODE=${PIPESTATUS[0]}
+          echo $EXITCODE
+          exit $EXITCODE
+      
+  test_pipeline_exitcodes_succeed2:
+    name: Succeeds2
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          false | true
+          EXITCODE=${PIPESTATUS[1]}
+          echo $EXITCODE
+          exit $EXITCODE
+          
+  test_pipeline_exitcodes_fails:
+    name: Fails
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          false | true
+          EXITCODE=${PIPESTATUS[0]}
+          echo $EXITCODE
+          exit $EXITCODE
