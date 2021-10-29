@@ -3,10 +3,10 @@ on: workflow_dispatch
 
 jobs:
   caller1:
-    uses: tjanuario/actions_demo/.github/workflows/workflow_called.yml@${{ github.head_ref }}
+    uses: tjanuario/actions_demo/.github/workflows/workflow_called.yml@develop
     with:
       variable: My variable
   caller2:
-    uses: tjanuario/actions_demo/.github/workflows/workflow_called.yml@${{ github.head_ref }}
+    uses: tjanuario/actions_demo/.github/workflows/workflow_called.yml@develop
     with:
       variable: Another variable
