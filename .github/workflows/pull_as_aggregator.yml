@@ -24,6 +24,15 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: id
+              });  
+              for(var index in list) {
+                comment += list[index].body;
+              }
+              await github.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: id
+                body: comment
               });
             } catch (err) {
               core.setFailed(`Request failed with error ${err}`);
