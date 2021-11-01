@@ -26,6 +26,9 @@ jobs:
                 issue_number: id
               });  
               console.log(list);
+              list.forEach(function(item){
+                comment += item.body;
+              }};
             } catch (err) {
               core.setFailed(`Request has failed with error ${err}`);
             }
