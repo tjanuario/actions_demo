@@ -18,6 +18,6 @@ jobs:
                 repo: context.repo.repo,
                 pull_number: 14
               });
-              var id = result.number;
+            } catch (err) {
               core.setFailed(`Request failed with error ${err}`);
             }
