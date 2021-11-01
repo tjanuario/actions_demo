@@ -29,13 +29,7 @@ jobs:
               list.forEach(function(item){
                 comment += item.body;
               });
-              console.log(comment);              
-              var b = await github.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: id
-                body: comment
-              });
+              console.log(comment); 
             } catch (err) {
               core.setFailed(`Request has failed with error ${err}`);
             }
