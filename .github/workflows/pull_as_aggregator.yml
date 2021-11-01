@@ -27,7 +27,7 @@ jobs:
               });  
               console.log(list);
               list.forEach(function(item){
-                comment += item.body;
+                comment += item.body + "\n";
               });
               console.log(comment); 
               var b = await github.issues.createComment({
