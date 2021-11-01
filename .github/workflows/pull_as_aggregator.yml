@@ -29,6 +29,7 @@ jobs:
               list.forEach(function(item){
                 comment += item.body;
               });
+              console.log(comment);
             } catch (err) {
               core.setFailed(`Request has failed with error ${err}`);
             }
