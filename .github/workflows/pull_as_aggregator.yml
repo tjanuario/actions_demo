@@ -30,7 +30,7 @@ jobs:
                 comment += item.body;
               });
               console.log(comment);              
-              var result = await github.issues.createComment({
+              var b = await github.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: id
