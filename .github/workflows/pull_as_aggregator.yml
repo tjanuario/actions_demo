@@ -9,12 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v3
-        with:
+        with: 
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             var comment = "";
             try {
-              const { result: data } = await github.pulls.get({
+              const { data: result } = await github.pulls.get({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 pull_number: 14
