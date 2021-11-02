@@ -11,7 +11,7 @@ jobs:
   find_changed_workspaces:
     runs-on: ubuntu-latest
     env:
-      pr_number: 15
+      pr_number: 16
     outputs:
       pr_number: ${{ steps.get_branch.outputs.pr_number}}
       issue_number: ${{ steps.summary_comment.outputs.issue_number}}
@@ -124,19 +124,20 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             try {
-              var comment = process.env.NONCE_WORD + "\n/tmp/blah/boom/${{ matrix.customer_root}}\n" 
               const fs = require('fs')  
               fs.readFile("/tmp/terraform.results", (err, data) => {
                 if (err) throw err;
                 // Create a summary comment
-                comment += data;
+                var comment = process.env.NONCE_WORD + "\n"
+                comment += /tmp/blah/boom/${{ matrix.customer_root}}\n" 
+                comment += data                
+                await github.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: process.env.ISSUE_NUMBER,
+                  body: comment
+                })
               });
-              await github.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: process.env.ISSUE_NUMBER,
-                body: comment
-              })
             }
             catch (err) {
               core.setFailed(`Request failed with error ${err}`)
