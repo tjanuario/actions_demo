@@ -4,38 +4,181 @@ on:
   workflow_dispatch:
   push:
 
-jobs:
-  get_pull:
+jobs: 
+  # This job executes terraform init, fmt, validate, and plan when a PR is created
+  # and on subsequent commits to the same PR branch. This workflow detects file changes
+  # and only runs when ".tf" files within the workspace have been modified.
+  find_changed_workspaces:
     runs-on: ubuntu-latest
+    env:
+      pr_number: 14
+    outputs:
+      issue_number: ${{ steps.summary_comment.outputs.issue_number}}
+      summary_comment_id: ${{ steps.summary_comment.outputs.summary_comment_id }}
+      has_apply_permission: ${{ steps.check_permissions.outputs.has-permission }}
+      nonce_word:  ${{ steps.create_nonce_word.outputs.nonce_word }}
+
     steps:
-      - uses: actions/github-script@v3
+      # Create or clear a summary comment that will contain the aggregated summary records for the commands.
+      - name: Create summary comment
+        if: env.pr_number > 0
+        id: summary_comment
+        uses: actions/github-script@v3
         with: 
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            var comment = "";
             try {
-              const { data: result } = await github.pulls.get({
+              const SUMMARY_TEXT = 'Terraform Summary:'
+              // Get the pull for this workflow
+              var { data.number: issue_number } = await github.pulls.get({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                pull_number: 14
+                pull_number: process.env.pr_number
               });
-              var id = result.number;
-              const { data: list } = await github.issues.listComments({
+              // Get the list of comments
+              var { data: comments } = await github.issues.listComments({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: id
-              });  
-              console.log(list);
-              list.forEach(function(item){
-                comment += item.body + "\n";
+                issue_number: issue_number
               });
-              console.log(comment); 
-              var b = await github.issues.createComment({
+              var summary_comment_id = 0;
+              comments.forEach(function(comment){
+                if (comment.body.startsWith(SUMMARY_TEXT)) {
+                  summary_comment_id = comment.id;
+                  await github.issues.updateComment({                    
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: comment_id,
+                    body: SUMMARY_TEXT
+                  })
+                  break;
+                }
+              });
+              if (summary_comment_id == 0) {
+                var { data: comment } =await github.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id:comment_id,
+                    body: SUMMARY_TEXT
+                }
+                summary_comment_id = comment.id;
+              }
+              console.log(`::set-output name=issue_number::${issue_number}`)
+              console.log(`::set-output name=summary_comment_id::${summary_comment_id}`)
+
+      # Create a nonce word that will be used to identify individual summary comments that will be aggregated and then deleted   
+      - name: Create Nonce Word
+        uses: actions/github-script@v3
+        id: create_nonce_word
+        with:
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }} 
+          script: |  
+            // Set the length of the nonce word
+            var length = 30;
+            var nonceword = "";
+            var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            // loop $length times to create the nonce word
+            for (var i = 0; i < length; i++)
+              nonceword += possible.charAt(Math.floor(Math.random() * possible.length));
+            console.log("::set-output name=nonce_word::" + nonce_word);
+
+   terraform_customer:
+    name: "Target:" 
+    runs-on: ubuntu-latest
+    needs: [find_changed_workspaces]
+    env:
+      PR_NUMBER: ${{ needs.find_changed_workspaces.outputs.pr_number }}
+      ISSUE_NUMBER: ${{ needs.find_changed_workspaces.outputs.issue_number }}
+      NONCE_WORD: ${{ needs.find_changed_workspaces.outputs.nonce_word }}
+      TF_IN_AUTOMATION: "true" # any non-empty value to set
+    strategy:
+      fail-fast: false
+      matrix: 
+        customer_root: [1, 2, 3, 4, 5, 6]
+    steps:    
+      # Create the individual summary record that will be aggregated by the next job
+      - name: Create Individual Summary Record
+        id: create_summary
+        uses: actions/github-script@v3
+        with: 
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {              
+              // Create a summary comment
+              var comment = process.env.NONCE_WORD + '\n' + ' ${{ matrix.customer_root }}\nIdentity: Plan: ${{ matrix.customer_root }} to add, 0 to change, 0 to destroy.';
+              await github.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: id,
+                issue_number: process.env.ISSUE_NUMBER,
                 body: comment
+              }
+            }
+            catch (err) {
+              core.setFailed(`Request failed with error ${err}`)
+            }
+  
+  aggregate_terraform_summary_records:
+    name: Aggregate terraform results
+    if: ${{ always() }}
+    needs: [ terraform_customer ]
+    runs-on: ubuntu-latest
+    env:
+      NONCE_WORD: blah
+      SUMMARY_COMMENT_ID: 0
+    steps:
+      # Aggregate the individual summary record comments that each terraform job created in the matrix job above
+      # then delete the individual summary record comments
+      - name: Aggregate Summary Records
+        if: env.pr_number > 0
+        id: aggregate_summary_records
+        uses: actions/github-script@v3
+        with: 
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              // Get the pull for this workflow
+              var { data.number: issue_number } = await github.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: process.env.pr_number
               });
-            } catch (err) {
-              core.setFailed(`Request has failed with error ${err}`);
+              // Get the summary comment from the pull record (created earlier)
+              var { data.body: summary_comment } = await github.issues.getComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: process.env.SUMMARY_COMMENT_ID
+              });
+              // Get the list of comments for this PR and loop through them looking for the individual summary coments (identified by a NONCE word).
+              // These are the records that will be aggregated.
+              var { data: comments } = await github.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue_number
+              });
+              // Loop through to identify summaries, add individual summary to the aggregated summary_comment variable
+              // and add the comment id to an array
+              var delete_list = []
+              comments.forEach(function(comment){
+                if (comment.body.startsWith(process.env.NONCE_WORD)) {
+                  summary_comment += "\n" + comment.body.replace(NONCE_STRING, '') + "\n";
+                  delete_list.push(comment.id);
+                }
+              });
+              // Update the summary record with the new aggregated value
+              await github.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: process.env.SUMMARY_COMMENT_ID,
+                body: summary_comment
+              }
+              // Delete the individual summary records that have been aggregated
+              delete_list.forEach(function(comment_id){
+                await github.issues.deleteComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: comment_id})
+              })
+            }
+            catch (err) {
+              core.setFailed(`Request failed with error ${err}`)
             }
