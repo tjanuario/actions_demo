@@ -42,7 +42,7 @@ jobs:
                 issue_number: pull.number
               });
               var summary_comment_id = 0;
-              comments.forEach(async function(comment){
+              for (let comment of comments) {
                 if (comment.body.startsWith(SUMMARY_TEXT)) {
                   summary_comment_id = comment.id;
                   await github.issues.updateComment({                    
@@ -52,7 +52,7 @@ jobs:
                     body: SUMMARY_TEXT
                   })
                   break;
-                });
+                };
               });
               if (summary_comment_id == 0) {
                 var { data: comment } = await github.issues.createComment({
