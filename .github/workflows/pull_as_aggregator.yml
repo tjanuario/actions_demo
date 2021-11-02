@@ -60,11 +60,15 @@ jobs:
                   repo: context.repo.repo,
                   comment_id:comment_id,
                   body: SUMMARY_TEXT
-                }
+                })
                 summary_comment_id = comment.id;
               }
               console.log(`::set-output name=issue_number::${pull.number}`)
               console.log(`::set-output name=summary_comment_id::${summary_comment_id}`)
+            }
+            catch (err) {
+              core.setFailed(`Request failed with error ${err}`)
+            }
 
       # Create a nonce word that will be used to identify individual summary comments that will be aggregated and then deleted   
       - name: Create Nonce Word
