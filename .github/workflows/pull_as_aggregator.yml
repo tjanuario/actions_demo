@@ -48,7 +48,7 @@ jobs:
                   await github.issues.updateComment({                    
                     owner: context.repo.owner,
                     repo: context.repo.repo,
-                    comment_id: comment_id,
+                    comment_id: comment.id,
                     body: SUMMARY_TEXT
                   })
                   break;
