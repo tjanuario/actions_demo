@@ -79,11 +79,11 @@ jobs:
           script: |  
             // Set the length of the nonce word
             var length = 30;
-            var nonceword = "";
+            var nonce_word = "";
             var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
             // loop $length times to create the nonce word
             for (var i = 0; i < length; i++)
-              nonceword += possible.charAt(Math.floor(Math.random() * possible.length));
+              nonce_word += possible.charAt(Math.floor(Math.random() * possible.length));
             console.log("::set-output name=nonce_word::" + nonce_word);
 
   terraform_customer:
