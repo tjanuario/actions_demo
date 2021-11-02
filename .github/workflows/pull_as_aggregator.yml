@@ -124,11 +124,13 @@ jobs:
   aggregate_terraform_summary_records:
     name: Aggregate terraform results
     if: ${{ always() }}
-    needs: [ terraform_customer ]
+    needs: [ find_changed_workspaces, terraform_customer ]
     runs-on: ubuntu-latest
     env:
-      NONCE_WORD: blah
-      SUMMARY_COMMENT_ID: 0
+      PR_NUMBER: ${{ needs.find_changed_workspaces.outputs.pr_number }}
+      ISSUE_NUMBER: ${{ needs.find_changed_workspaces.outputs.issue_number }}
+      SUMMARY_COMMENT_ID: ${{ needs.find_changed_workspaces.outputs.summary_comment_id }}
+      NONCE_WORD: ${{ needs.find_changed_workspaces.outputs.nonce_word }}
     steps:
       # Aggregate the individual summary record comments that each terraform job created in the matrix job above
       # then delete the individual summary record comments
@@ -140,18 +142,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             try {
-              // Get the pull for this workflow
-              var { data.number: issue_number } = await github.pulls.get({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: process.env.pr_number
-              });
-              // Get the summary comment from the pull record (created earlier)
-              var { data.body: summary_comment } = await github.issues.getComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: process.env.SUMMARY_COMMENT_ID
-              });
               // Get the list of comments for this PR and loop through them looking for the individual summary coments (identified by a NONCE word).
               // These are the records that will be aggregated.
               var { data: comments } = await github.issues.listComments({
@@ -161,7 +151,8 @@ jobs:
               });
               // Loop through to identify summaries, add individual summary to the aggregated summary_comment variable
               // and add the comment id to an array
-              var delete_list = []
+              var delete_list = []             
+              var summary_comment = 'Terraform Summary:'
               comments.forEach(function(comment){
                 if (comment.body.startsWith(process.env.NONCE_WORD)) {
                   summary_comment += "\n" + comment.body.replace(NONCE_STRING, '') + "\n";
