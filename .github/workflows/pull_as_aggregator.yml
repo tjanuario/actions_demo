@@ -193,7 +193,7 @@ jobs:
               });
               // Delete the individual summary records that have been aggregated
               delete_list.forEach( function(comment_id) {
-                core.log(comment_id);
+                console.log(comment_id);
                 github.issues.deleteComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
