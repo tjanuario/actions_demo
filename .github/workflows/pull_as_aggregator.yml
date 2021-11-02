@@ -131,7 +131,7 @@ jobs:
                 var comment = process.env.NONCE_WORD + "\n"
                 comment += "/tmp/blah/boom/${{ matrix.customer_root}}\n" 
                 comment += data                
-                await github.issues.createComment({
+                github.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: process.env.ISSUE_NUMBER,
