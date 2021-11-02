@@ -22,7 +22,9 @@ jobs:
     steps:
       - name: Get Branch
         id: get_branch
-        run: console.log(`::set-output name=pr_number::${env.pr_number}`)
+        run: |
+          console.log(`::set-output name=pr_number::${{ env.pr_number }}`)
+
       # Create or clear a summary comment that will contain the aggregated summary records for the commands.
       - name: Create summary comment
         if: env.pr_number > 0
