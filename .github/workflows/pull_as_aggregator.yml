@@ -103,7 +103,17 @@ jobs:
       fail-fast: false
       matrix: 
         customer_root: [1, 2, 3, 4, 5, 6]
-    steps:    
+    steps: 
+      # Print the terraform results to the log
+      - name: "Debug: Terraform results"
+        id: tf_results
+        run: |
+          echo "identity workspace => Plan: ${{ matrix.customer_root }} to add, 0 to change, 0 to destroy.\n" > /tmp/terraform.results
+          echo "security workspace => Plan: ${{ matrix.customer_root }} to add, 0 to change, 0 to destroy.\n" >> /tmp/terraform.results
+          echo "storage workspace => Plan: ${{ matrix.customer_root }} to add, 0 to change, 0 to destroy.\n" >> /tmp/terraform.results
+          echo "operations workspace => Plan: ${{ matrix.customer_root }} to add, 0 to change, 0 to destroy.\n" >> /tmp/terraform.results
+          cat /tmp/terraform.results
+
       # Create the individual summary record that will be aggregated by the next job
       - name: Create Individual Summary Record
         id: create_summary
@@ -111,9 +121,13 @@ jobs:
         with: 
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            try {              
-              // Create a summary comment
-              var comment = process.env.NONCE_WORD + '\n' + ' ${{ matrix.customer_root }}\nIdentity: Plan: ${{ matrix.customer_root }} to add, 0 to change, 0 to destroy.';
+            try {
+              const fs = require('fs')  
+              fs.readFile("/tmp/terraform.results", (err, data) => {
+                if (err) throw err;
+                // Create a summary comment
+                var comment = process.env.NONCE_WORD + '\n' + data;
+              });
               await github.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -124,6 +138,7 @@ jobs:
             catch (err) {
               core.setFailed(`Request failed with error ${err}`)
             }
+  
   
   aggregate_terraform_summary_records:
     name: Aggregate terraform results
