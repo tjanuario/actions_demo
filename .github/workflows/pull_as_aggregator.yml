@@ -181,7 +181,7 @@ jobs:
                   summary_comment += "\n" + comment.body.replace(NONCE_WORD, '') + "\n";
                   delete_list.push(comment.id);
                 }
-              });
+              };
               // Update the summary record with the new aggregated value
               await github.issues.updateComment({
                 owner: context.repo.owner,
