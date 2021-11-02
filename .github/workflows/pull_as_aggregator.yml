@@ -13,12 +13,16 @@ jobs:
     env:
       pr_number: 15
     outputs:
+      pr_number: ${{ steps.get_branch.outputs.pr_number}}
       issue_number: ${{ steps.summary_comment.outputs.issue_number}}
       summary_comment_id: ${{ steps.summary_comment.outputs.summary_comment_id }}
       has_apply_permission: ${{ steps.check_permissions.outputs.has-permission }}
       nonce_word:  ${{ steps.create_nonce_word.outputs.nonce_word }}
 
     steps:
+      - name: Get Branch
+        id: get_branch
+        run: console.log(`::set-output name=pr_number::${env.pr_number}`)
       # Create or clear a summary comment that will contain the aggregated summary records for the commands.
       - name: Create summary comment
         if: env.pr_number > 0
