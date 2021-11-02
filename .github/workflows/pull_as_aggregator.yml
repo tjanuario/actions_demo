@@ -45,7 +45,8 @@ jobs:
               var { data: comments } = await github.issues.listComments({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: pull.number
+                issue_number: pull.number,
+                per_page: 100
               });
               var summary_comment_id = 0;
               for (let comment of comments) {
@@ -169,7 +170,8 @@ jobs:
               var { data: comments } = await github.issues.listComments({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: process.env.ISSUE_NUMBER
+                issue_number: process.env.ISSUE_NUMBER,
+                per_page: 100
               });     
               console.log(comments.length)         
               // Loop through to identify summaries, add individual summary to the aggregated summary_comment variable
