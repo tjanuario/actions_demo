@@ -105,7 +105,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: 
-        customer_root: [1, 2, 3, 4, 5, 6]
+        customer_root: [1, 2]
     steps: 
       # Print the terraform results to the log
       - name: "Debug: Terraform results"
@@ -193,6 +193,7 @@ jobs:
               });
               // Delete the individual summary records that have been aggregated
               delete_list.forEach( function(comment_id) {
+                core.log(comment_id);
                 github.issues.deleteComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
