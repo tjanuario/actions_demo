@@ -124,7 +124,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             try {
-              var comment = process.env.NONCE_WORD + '\n'
+              var comment = process.env.NONCE_WORD + "\n/tmp/blah/boom/${{ matrix.customer_root}}\n" 
               const fs = require('fs')  
               fs.readFile("/tmp/terraform.results", (err, data) => {
                 if (err) throw err;
