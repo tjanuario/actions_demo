@@ -11,7 +11,7 @@ jobs:
   find_changed_workspaces:
     runs-on: ubuntu-latest
     env:
-      pr_number: 14
+      pr_number: 15
     outputs:
       issue_number: ${{ steps.summary_comment.outputs.issue_number}}
       summary_comment_id: ${{ steps.summary_comment.outputs.summary_comment_id }}
