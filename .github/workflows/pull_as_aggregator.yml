@@ -177,7 +177,7 @@ jobs:
               var summary_comment = 'Terraform Summary:'
               for (let comment of comments) {
                 console.log(process.env.NONCE_WORD);
-                console.log(comment);
+                console.log("found: " + comment.body);
                 if (comment.body.startsWith(process.env.NONCE_WORD)) {
                   log('hit');
                   summary_comment += "\n" + comment.body.replace(NONCE_WORD, '') + "\n";
