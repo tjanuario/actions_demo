@@ -48,7 +48,7 @@ jobs:
                   await github.issues.updateComment({                    
                     owner: context.repo.owner,
                     repo: context.repo.repo,
-                    comment_id: comment.id,
+                    comment_id: summary_comment_id,
                     body: SUMMARY_TEXT
                   })
                   break;
@@ -58,7 +58,7 @@ jobs:
                 var { data: comment } = await github.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  comment_id:comment_id,
+                  issue_number: pull.number,
                   body: SUMMARY_TEXT
                 })
                 summary_comment_id = comment.id;
