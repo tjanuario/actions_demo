@@ -110,10 +110,10 @@ jobs:
       - name: "Debug: Terraform results"
         id: tf_results
         run: |
-          echo "identity workspace => Plan: ${{ matrix.customer_root }} to add, 0 to change, 0 to destroy.\n" > /tmp/terraform.results
-          echo "security workspace => Plan: ${{ matrix.customer_root }} to add, 0 to change, 0 to destroy.\n" >> /tmp/terraform.results
-          echo "storage workspace => Plan: ${{ matrix.customer_root }} to add, 0 to change, 0 to destroy.\n" >> /tmp/terraform.results
-          echo "operations workspace => Plan: ${{ matrix.customer_root }} to add, 0 to change, 0 to destroy.\n" >> /tmp/terraform.results
+          echo "identity workspace => Plan: ${{ matrix.customer_root }} to add, 0 to change, 0 to destroy." > /tmp/terraform.results
+          echo "security workspace => Plan: ${{ matrix.customer_root }} to add, 0 to change, 0 to destroy." >> /tmp/terraform.results
+          echo "storage workspace => Plan: ${{ matrix.customer_root }} to add, 0 to change, 0 to destroy." >> /tmp/terraform.results
+          echo "operations workspace => Plan: ${{ matrix.customer_root }} to add, 0 to change, 0 to destroy." >> /tmp/terraform.results
           cat /tmp/terraform.results
 
       # Create the individual summary record that will be aggregated by the next job
@@ -124,11 +124,12 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             try {
+              var comment = process.env.NONCE_WORD + '\n'
               const fs = require('fs')  
               fs.readFile("/tmp/terraform.results", (err, data) => {
                 if (err) throw err;
                 // Create a summary comment
-                var comment = process.env.NONCE_WORD + '\n' + data;
+                comment += data;
               });
               await github.issues.createComment({
                 owner: context.repo.owner,
