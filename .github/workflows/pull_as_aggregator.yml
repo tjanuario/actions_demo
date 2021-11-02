@@ -115,7 +115,7 @@ jobs:
                 repo: context.repo.repo,
                 issue_number: process.env.ISSUE_NUMBER,
                 body: comment
-              }
+              })
             }
             catch (err) {
               core.setFailed(`Request failed with error ${err}`)
