@@ -171,6 +171,7 @@ jobs:
                 repo: context.repo.repo,
                 issue_number: process.env.ISSUE_NUMBER
               });
+              console.log(comments);
               // Loop through to identify summaries, add individual summary to the aggregated summary_comment variable
               // and add the comment id to an array
               var delete_list = []             
