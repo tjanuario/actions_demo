@@ -52,7 +52,7 @@ jobs:
                     body: SUMMARY_TEXT
                   })
                   break;
-                }
+                });
               });
               if (summary_comment_id == 0) {
                 var { data: comment } = await github.issues.createComment({
