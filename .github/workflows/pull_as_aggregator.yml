@@ -178,12 +178,17 @@ jobs:
               // and add the comment id to an array
               var delete_list = []             
               var summary_comment = 'Terraform Summary:'
+              var sorted = [];
               for (let comment of comments) {
                 if (comment.body.startsWith(process.env.NONCE_WORD)) {
-                  summary_comment += "\n" + comment.body.replace(process.env.NONCE_WORD, '') + "\n";
+                  sorted.push(comment.body.replace(process.env.NONCE_WORD, ''));
                   delete_list.push(comment.id);
                 }
               };
+              sorted.sort();
+              for (let comment of sorted) {                
+                  summary_comment += "\n" + comment + "\n";
+              }
               // Update the summary record with the new aggregated value
               await github.issues.updateComment({
                 owner: context.repo.owner,
