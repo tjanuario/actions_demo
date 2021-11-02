@@ -30,7 +30,7 @@ jobs:
             try {
               const SUMMARY_TEXT = 'Terraform Summary:'
               // Get the pull for this workflow
-              var { data.number: issue_number } = await github.pulls.get({
+              var { data: pull } = await github.pulls.get({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 pull_number: process.env.pr_number
@@ -39,7 +39,7 @@ jobs:
               var { data: comments } = await github.issues.listComments({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: issue_number
+                issue_number: pull.number
               });
               var summary_comment_id = 0;
               comments.forEach(function(comment){
@@ -59,11 +59,11 @@ jobs:
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   comment_id:comment_id,
-                    body: SUMMARY_TEXT
+                  body: SUMMARY_TEXT
                 }
                 summary_comment_id = comment.id;
               }
-              console.log(`::set-output name=issue_number::${issue_number}`)
+              console.log(`::set-output name=issue_number::${pull.number}`)
               console.log(`::set-output name=summary_comment_id::${summary_comment_id}`)
 
       # Create a nonce word that will be used to identify individual summary comments that will be aggregated and then deleted   
