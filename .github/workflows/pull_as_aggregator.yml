@@ -187,13 +187,13 @@ jobs:
                 repo: context.repo.repo,
                 comment_id: process.env.SUMMARY_COMMENT_ID,
                 body: summary_comment
-              }
+              });
               // Delete the individual summary records that have been aggregated
               delete_list.forEach(function(comment_id){
-                await github.issues.deleteComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: comment_id})
+                github.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment_id
               })
             }
             catch (err) {
