@@ -105,7 +105,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: 
-        customer_root: [1, 2]
+        customer_root: [1, 2, 3, 4, 5]
     steps: 
       # Print the terraform results to the log
       - name: "Debug: Terraform results"
