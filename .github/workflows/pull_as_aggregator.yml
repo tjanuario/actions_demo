@@ -11,7 +11,7 @@ jobs:
   find_changed_workspaces:
     runs-on: ubuntu-latest
     env:
-      pr_number: 16
+      pr_number: 17
     outputs:
       pr_number: ${{ steps.get_branch.outputs.pr_number}}
       issue_number: ${{ steps.summary_comment.outputs.issue_number}}
@@ -158,7 +158,7 @@ jobs:
       # Aggregate the individual summary record comments that each terraform job created in the matrix job above
       # then delete the individual summary record comments
       - name: Aggregate Summary Records
-        if: env.pr_number > 0
+        if: env.PR_NUMBER > 0
         id: aggregate_summary_records
         uses: actions/github-script@v3
         with: 
