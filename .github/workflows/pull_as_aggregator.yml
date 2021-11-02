@@ -194,8 +194,8 @@ jobs:
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   comment_id: comment_id
-                }
-              })
+                })
+              });
             }
             catch (err) {
               core.setFailed(`Request failed with error ${err}`)
