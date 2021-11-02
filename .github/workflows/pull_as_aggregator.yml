@@ -82,7 +82,7 @@ jobs:
               nonceword += possible.charAt(Math.floor(Math.random() * possible.length));
             console.log("::set-output name=nonce_word::" + nonce_word);
 
-   terraform_customer:
+  terraform_customer:
     name: "Target:" 
     runs-on: ubuntu-latest
     needs: [find_changed_workspaces]
