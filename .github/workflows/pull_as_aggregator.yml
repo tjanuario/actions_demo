@@ -176,7 +176,7 @@ jobs:
               // and add the comment id to an array
               var delete_list = []             
               var summary_comment = 'Terraform Summary:'
-              comments.forEach( function(comment) {
+              for (let comment of comments) {
                 if (comment.body.startsWith(process.env.NONCE_WORD)) {
                   summary_comment += "\n" + comment.body.replace(NONCE_WORD, '') + "\n";
                   delete_list.push(comment.id);
