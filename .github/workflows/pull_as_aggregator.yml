@@ -55,7 +55,7 @@ jobs:
                 }
               });
               if (summary_comment_id == 0) {
-                var { data: comment } =await github.issues.createComment({
+                var { data: comment } = await github.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   comment_id:comment_id,
