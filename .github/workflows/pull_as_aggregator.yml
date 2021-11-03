@@ -126,7 +126,7 @@ jobs:
           script: |
             try {
               const fs = require('fs') 
-              var blah = fs.readFileSync("/tmp/teraform.results");
+              var blah = fs.readFileSync("/tmp/terraform.results");
               fs.readFile("/tmp/terraform.results", (err, data) => {
                 if (err) throw err;
                 // Create a summary comment
