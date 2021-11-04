@@ -1,4 +1,4 @@
-name: "terraform"
+name: "terraform-test"
 # This workflow expects will run automatically when a PR is created, updated, or synchronized
 # OR when manually triggered by "terraform plan" / "terraform apply" issue comments.
 # It first determines the (Terraform) files that have been modified, creates a matrix of
@@ -7,93 +7,515 @@ name: "terraform"
 
 on: 
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
     types: [opened, synchronize, reopened]
-    paths:
-      - "Terraform/**"
+
   issue_comment:
     types: [created]
-
+  push:
  
 jobs: 
   # This job executes terraform init, fmt, validate, and plan when a PR is created
   # and on subsequent commits to the same PR branch. This workflow detects file changes
   # and only runs when ".tf" files within the workspace have been modified.
-  
-  manual_tf_run:
-    name: "manual_tf_run"
+  find_changed_workspaces:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'issue_comment' }}
-    strategy:
-      fail-fast: false
-      #max-parallel: 256
-      matrix: 
-        terraform_roots: ["this", "that"]
+    env:
+      TESTING_PR_NUMBER: 225
+    outputs:
+      changed_customers: ${{ steps.file_change_customers.outputs.changed_customers }}
+      branch: ${{ steps.get_branch.outputs.branch }}
+      pr_number: ${{ steps.get_branch.outputs.pr_number}}
+      summary_comment_id: ${{ steps.summary_comment.outputs.summary_comment_id }}
+      has_apply_permission: ${{ steps.check_permissions.outputs.has-permission }}
+      nonce_word:  ${{ steps.create_nonce_word.outputs.nonce_word }}
+
     steps:
-      - name: Determine Command
-        id: determine-command
+      # Checks-out your repository from the PR's branch
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+        
+      # Because issue_comment actions always reference the main/master branch,
+      # we must determine the PR branch to use it as an explicit ref
+      - name: Get Branch
+        id: get_branch
+        uses: actions/github-script@v3
+        with:
+          script: |
+            var branch = '${{ github.sha }}'
+            var pr_number = 0;
+            if (['push'].includes('${{ github.event_name }}')) {
+              pr_number = process.env.TESTING_PR_NUMBER;
+            }
+            else if (['pull_request', 'issue_comment'].includes('${{ github.event_name}}')) {
+              pr_number = context.issue.number;
+            }            
+            const request = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr_number
+            }
+            try {
+              const result = await github.pulls.get(request)
+              console.log(result.data)
+              branch = result.data.head.sha
+            } 
+            catch (err) {
+              core.setFailed(`Request failed with error ${err}`)
+            }
+            core.info(`Getting PR #${request.pull_number} from ${request.owner}/${request.repo}`)
+            console.log(`::set-output name=pr_number::${request.pull_number}`)
+            console.log(`::set-output name=branch::${branch}`)
+
+      # If the trigger was an issue/PR comment, determine which files changed
+      - name: Determine file changes
+        uses: actions/github-script@v3
+        with:
+          script: |
+            console.log(`::set-output name=all_files::["Terraform/storage/main.tf","Terrafor2/storage/main.tf"]`)          
+
+      # Determine the changed files, remove file extensions (to determine Terraform
+      # root directory path), deduplicate root paths to ensure single run of the
+      # TF root/workspace, and reformat the result into a matrix-compatible output
+      - name: Find customers with changed files
+        id: file_change_customers
+        run: |
+          # Get the root customer folders for all changed files. 
+          pattern='s/(\/+(identity|network|storage|security|operations)+\/[a-z|A-Z]+(.tf|.tfvars|.auto.tfvars|.json))//g'
+          echo '${{ steps.file_changes.outputs.all_files }}' | sed -r $pattern > customers.txt
+          # Make sure the list of customer folders is unique
+          jq unique customers.txt > unique_customers.txt       
+          echo "::set-output name=changed_customers::$(cat unique_customers.txt | tr -d '\n' | tr -d ' ' )"
+          rm -f customers.txt
+          rm -f unique_customers.txt
+      
+      # Outputh the json array that was set in the previous step.  This is the source
+      # for the matrix
+      - name: Debug list unique customer changes
+        run: |
+          echo '${{ steps.file_change_customers.outputs.changed_customers }}'
+
+      # Ensure user is authorized to apply (>= write permissions on repo)
+      - name: Check User Permissions
+        id: check_permissions
+        uses: scherermichael-oss/action-has-permission@master
+        with:
+          required-permission: write
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Use the output from the `check_permissions` step to determine whether user is
+      # authorized to issue Terraform commands (>= write permissions on current repo)
+      - name: User has sufficient permissions
+        if: steps.check_permissions.outputs.has-permission
+        run: echo "Congratulations, you have apply permissions. With great power comes great responsibility!"
+
+      - name: User does NOT have sufficient permissions
+        if: (! steps.check_permissions.outputs.has-permission)
+        run: echo "Sorry! Your permissions are insufficient to run 'terraform apply'.  If this is an error, contact the repository administrator to ensure you have write permissions."
+
+      # If the result of this > 0, the PR contains the designated label and will be considered 'approved' for Terraform apply
+      - name: Check PR Approval Status
+        if: steps.get_branch.outputs.pr_number > 0 && steps.check_permissions.outputs.has-permission
+        id: check_approval_status
+        run: |
+            echo "::set-output name=label_state::$(curl --request GET --url https://${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}@api.github.com/repos/${{ github.repository }}/pulls/${{ inputs.pr_number }} --header 'Content-Type: application/json' | jq '.labels[0] | select(.name=="apply-approved") | length')"
+            echo "::set-output name=approval_state::$(curl --request GET --url https://${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}@api.github.com/repos/${{ github.repository }}/pulls/${{ inputs.pr_number }}/reviews --header 'Content-Type: application/json' | jq 'unique_by(.state) | .[0].state=="APPROVED"')"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Print the approval status to the job output
+      - name: Debug PR Approval Status
+        id: debug_approval_status
+        run: echo '${{ steps.check_approval_status.outputs.approval_state }}'
+
+      # Create or clear a summary comment that will contain the aggregated summary records for the commands.
+      - name: Create summary comment
+        if: steps.get_branch.outputs.pr_number > 0
+        id: summary_comment
         uses: actions/github-script@v3
         env:
-          TF_ROOT: ${{ matrix.terraform_roots }}
+          PR_NUMBER: ${{ steps.get_branch.outputs.pr_number}}
+        with: 
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              const SUMMARY_TEXT = 'Terraform Summary:'
+
+              // Get the list of comments
+              var { data: comments } = await github.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: process.env.PR_NUMBER,
+                per_page: 100
+              });
+              var summary_comment_id = 0;
+              for (let comment of comments) {
+                if (comment.body.startsWith(SUMMARY_TEXT)) {
+                  summary_comment_id = comment.id;
+                  await github.issues.updateComment({                    
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: summary_comment_id,
+                    body: SUMMARY_TEXT
+                  })
+                  break;
+                };
+              };
+              if (summary_comment_id == 0) {
+                var { data: comment } = await github.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: process.env.PR_NUMBER,
+                  body: SUMMARY_TEXT
+                })
+                summary_comment_id = comment.id;
+              }
+              console.log(`::set-output name=summary_comment_id::${summary_comment_id}`)
+            }
+            catch (err) {
+              core.setFailed(`Request failed with error ${err}`)
+            }
+
+      # Create a nonce word that will be used to identify individual summary comments that will be aggregated and then deleted   
+      - name: Create Nonce Word
+        uses: actions/github-script@v3
+        id: create_nonce_word
+        with:
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }} 
+          script: |  
+            // Set the length of the nonce word
+            var length = 30;
+            var nonce_word = "";
+            var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            // loop $length times to create the nonce word
+            for (var i = 0; i < length; i++)
+              nonce_word += possible.charAt(Math.floor(Math.random() * possible.length));
+            console.log("::set-output name=nonce_word::" + nonce_word);
+      
+  terraform_customer:
+    name: "Target:" 
+    runs-on: ubuntu-latest
+    needs: [find_changed_workspaces]
+    env:
+      HAS_APPLY_PERMISSION: ${{ needs.find_changed_workspaces.outputs.has_apply_permission }}
+      BRANCH: ${{ needs.find_changed_workspaces.outputs.branch }}
+      PR_NUMBER: ${{ needs.find_changed_workspaces.outputs.pr_number }}
+      NONCE_WORD: ${{ needs.find_changed_workspaces.outputs.nonce_word }}
+      TF_IN_AUTOMATION: "true" # any non-empty value to set
+    strategy:
+      fail-fast: false
+      matrix: 
+        customer_root: ${{ fromJson(needs.find_changed_workspaces.outputs.changed_customers) }}
+    
+    steps:      
+      # Determine the terraform command that we are running
+      - name: Determine Command
+        id: determine_command
+        uses: actions/github-script@v3
+        env:
+          ISSUE_COMMENT: ${{ github.event_name == 'issue_comment' }}
+          CUSTOMER_ROOT: ${{ matrix.customer_root }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |            
-            const body = context.payload.comment.body.toLowerCase().trim()
-            console.log("Detected PR comment: " + body)
-            console.log("This job is for workspace " + process.env.TF_ROOT)
-            commandArray = body.split(/\s+/)
-            if (commandArray[0] == "terraform") {
-              action = commandArray[1]
-              console.log(`action: ${commandArray[1]}`)
-              switch(action) {
-                case "apply":
-                  console.log(`workspace: ${commandArray[2]}`)
-                  if (typeof commandArray[2] === 'undefined') {
-                    console.log("::set-output name=do_apply::true");
-                  } else if (commandArray[2] == process.env.TF_ROOT.toLowerCase()) {
-                    console.log("::set-output name=do_apply::true");
-                  } else {
-                    console.log("apply command is not for this workspace");
-                  }
-                  break;
-                case "plan":
-                  console.log(`workspace: ${commandArray[2]}`)
-                  if (typeof commandArray[2] === 'undefined') {
-                    console.log("::set-output name=do_plan::true")
-                  } else if (commandArray[2] == process.env.TF_ROOT.toLowerCase()) {
-                    console.log("::set-output name=do_plan::true")
-                  } else {
-                    console.log("plan command is not for this workspace")
-                  }
-                  break;
-                case "force-unlock":
-                  console.log(`lock-id: ${commandArray[2]}`)
-                  console.log(`workspace: ${commandArray[3]}`)
-                  if (typeof commandArray[2] === 'undefined' || typeof commandArray[3] === 'undefined') {
-                    console.log("force-unlock command must have lock-id and workspace")                    
-                  }                   
-                  else if (commandArray[3] == process.env.TF_ROOT.toLowerCase()) {
-                    console.log("::set-output name=state_lock_id::" + commandArray[2])
-                    console.log("::set-output name=do_unlock::true")
-                  } 
-                  else {
-                    console.log("force-unlock command is not for this workspace")
-                  }
-                  break
-                default:
-                  console.log("Only plan, apply, and force-unlock supported for terraform. Job will not continue.")
-                  break
-              }
-            } 
+          script: |
+            if ('true' != process.env.ISSUE_COMMENT) {
+              console.log("::set-output name=command::plan")
+            }
             else {
-              console.log("Detected non-applicable command. Job will not continue.")
+              const body = context.payload.comment.body.toLowerCase().trim()
+              console.log("Detected PR comment: " + body)
+              console.log("This job is for workspace " + process.env.CUSTOMER_ROOT)
+              commandArray = body.split(/\s+/)
+              if (commandArray[0] == "terraform") {
+                action = commandArray[1]
+                console.log(`action: ${commandArray[1]}`)
+                switch(action) {
+                  case "apply":
+                    console.log(`workspace: ${commandArray[2]}`)
+                    if (typeof commandArray[2] === 'undefined') {
+                      console.log("::set-output name=command::apply");
+                    } else if (commandArray[2] == process.env.CUSTOMER_ROOT.toLowerCase()) {
+                      console.log("::set-output name=command::apply");
+                    } else {
+                      console.log("apply command is not for this workspace");
+                    }
+                    break;
+                  case "plan":
+                    console.log(`workspace: ${commandArray[2]}`)
+                    if (typeof commandArray[2] === 'undefined') {
+                      console.log("::set-output command::plan")
+                    } else if (commandArray[2] == process.env.CUSTOMER_ROOT.toLowerCase()) {
+                      console.log("::set-output command::plan")
+                    } else {
+                      console.log("plan command is not for this workspace")
+                    }
+                    break;
+                  default:
+                    console.log("Only plan and apply supported for terraform. Job will not continue.")
+                    break
+                }
+              } 
+              else {
+                console.log("Detected non-applicable command. Job will not continue.")
+              }
             }
             console.log(context)
-          
-      - name: Display output vars
-        id: display_file_changes
+
+      # Debug Determine Command
+      - name: "Debug: Determine Command"
         run: |
-          echo 'doapply: ${{ steps.determine-command.outputs.do_apply }}'
-          echo 'doplan: ${{ steps.determine-command.outputs.do_plan }}'
-          echo 'dounlock: ${{ steps.determine-command.outputs.do_unlock }}'
-          echo 'unlock_id: ${{ steps.determine-command.outputs.state_lock_id }}'
+          echo '${{ steps.determine_command.outputs.command }}'
+          
+      # Set AWS creds for future steps
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-west-2
+
+      # Checkout the code
+      - name: Checkout repository branch
+        uses: actions/checkout@v2
+
+      # Downloads and installs Terraform binaries, using the terraform_version specified
+      - name: Install and configure Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: latest
+          cli_config_credentials_token: ${{ secrets.CLI_CONFIG_CREDENTIALS_TOKEN }}
+          
+      # Ensures that private GitHub repos are available as Terraform module sources by setting git to use a privileged token
+      - name: Configure multi-repo credential substitution
+        run: |
+          git config --local user.name "ucsf-devops-bot"
+          git config --local url."https://${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}@github.com/UCSF-DevOps".insteadOf "https://github.com/UCSF-DevOps"
+          git config --global user.name "ucsf-devops-bot"
+          git config --global url."https://${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}@github.com/UCSF-DevOps".insteadOf "https://github.com/UCSF-DevOps"
+        env:
+          GH_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+      
+      # If the trigger was an issue/PR comment, determine which files changed
+      - name: Determine file changes
+        uses: dorny/paths-filter@v2.10.2
+        id: file_changes
+        with:
+          filters: |
+            all: "${{ matrix.customer_root }}/**"
+          list-files: json
+          ref: '${{ env.BRANCH }}'
+          token: ${{ secrets.GITHUB_TOKEN }}
+           
+      # Determine the changed files, remove file extensions (to determine Terraform
+      # root directory path), deduplicate root paths to ensure single run of the
+      # TF root/workspace, and reformat the result into a matrix-compatible output
+      - name: Find affected workspaces
+        id: find_affected_workspaces
+        run: |
+          # Get the folders of all changed files.  
+          echo '${{ steps.file_changes.outputs.all_files }}' | sed -r 's/(\/[a-z|A-Z]+(.tf|.tfvars|.auto.tfvars|.json))//g' > roots.temp.txt
+          customer='${{ matrix.customer_root }}'
+          escaped_customer=`echo "${customer//\//\\\/}"`          
+          cat roots.temp.txt | sed -r "s/$escaped_customer\///g" > folders.temp.txt
+          # Make sure the list of folders is unique
+          jq unique folders.temp.txt > unique_folders.temp.txt
+          # Define the array that sorts the folders in the order that we want the terraform executed in order to handle deps
+          order=(identity network storage security operations)         
+          # for each item in the order array
+          affected_workspaces=''
+          for i in "${order[@]}"
+          do
+            # check to see if unique_folders.temp.txt contains the folder and if so, add the folder to our ordered list array
+            found=`cat unique_folders.temp.txt | jq .[] | grep $i || test $? = 1`
+            if [ ! -z $found ]
+            then
+              echo "::set-output name=$i::true"
+              affected_workspaces="${affected_workspaces} ${i}"
+            fi
+          done   
+          echo "::set-output name=affected_workspaces::${affected_workspaces}"      
+          rm -rf *.temp.txt
+
+      # List the affected workspaces to the job output
+      - name: "Debug: Find affected workspaces"
+        run: |
+          echo '${{ steps.find_affected_workspaces.outputs.affected_workspaces }}'
+
+      # Create terraform results file for job result aggregation
+      - name: Create terraform results file
+        run: echo "${{ matrix.customer_root }}" > /tmp/terraform.results
+      
+      # Execute terraform commands storage
+      - name: Terraform init on storage workspace
+        if: (steps.find_affected_workspaces.outputs.storage)
+        id: tf_vinit_storage
+        working-directory: ./${{ matrix.customer_root }}/storage
+        continue-on-error: true    
+        run: |
+          terraform init 
+
+      - name: Terraform validate on storage workspace
+        if: (steps.find_affected_workspaces.outputs.storage)
+        id: tf_validate_storage
+        working-directory: ./${{ matrix.customer_root }}/storage
+        continue-on-error: true    
+        run: |
+          terraform validate -no-color
+
+      - name: "Terraform plan on storage workspace"
+        if: steps.tf_validate_storage.outcome == 'success' && steps.find_affected_workspaces.outputs.storage && steps.determine_command.outputs.command == 'plan'
+        id: tf_plan_storage
+        working-directory: ./${{ matrix.customer_root }}/storage 
+        continue-on-error: true    
+        run: |
+          terraform plan -no-color 
+
+      - name: "Terraform apply on storage workspace"
+        if: steps.tf_validate_storage.outcome == 'success' && steps.find_affected_workspaces.outputs.storage && env.HAS_APPLY_PERMISSION && steps.determine_command.outputs.command == 'apply' 
+        id: tf_apply_storage
+        working-directory: ./${{ matrix.customer_root }}/storage 
+        continue-on-error: true    
+        run: |
+          terraform apply -auto-approve -no-color
+          
+      - name: "Process terraform outputs"
+        if: steps.find_affected_workspaces.outputs.storage
+        env:
+          PLAN: "${{ steps.tf_plan_storage.outputs.stdout }}"
+          APPLY: "${{ steps.tf_apply_storage.outputs.stdout }}"
+        continue-on-error: true 
+        uses: actions/github-script@v3
+        with: 
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            var fs = require('fs');
+            const regex = /(No Change|(Plan:|Apply:) (\d to add, \d to change, \d to destroy)?)/g;
+            var planApply = process.env.PLAN + process.env.APPLY
+            if (planApply.length > 0) {
+              let match = regex.exec(planApply);
+              var add = (match !== null) ? match[1] : "Failure"
+              fs.appendFile('/tmp/terraform.results', "storage workspace => " + add, function (err) {
+                if (err) throw err;
+              });
+            }
+            const output = `#### Customer Workspace: \`${{ matrix.customer_root }}/storage\`
+            #### Terraform Validation: \`${{ steps.tf_validate_storage.outcome }}\`
+            #### Terraform Plan: \`${{ steps.tf_plan_storage.outcome }}\`
+            #### Terraform Apply: \`${{ steps.tf_apply_storage.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+            \`\`\`\n
+            ${process.env.PLAN}
+            \`\`\`
+            </details>
+
+            <details><summary>Show Apply</summary>
+            \`\`\`\n
+            ${process.env.APPLY}
+            \`\`\`
+            </details>
+
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ matrix.terraform_roots }}\`, Workflow: \`${{ github.workflow }}\`*`;
+            github.issues.createComment({
+              issue_number: process.env.PR_NUMBER,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      # Print the terraform results to the log
+      - name: "Debug: Terraform results"
+        id: tf_results
+        run: |
+          cat /tmp/terraform.results          
+
+      # Create the individual summary record that will be aggregated by the next job
+      - name: Create Individual Summary Record
+        if: env.PR_NUMBER > 0
+        id: create_summary
+        uses: actions/github-script@v3
+        with: 
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              const fs = require('fs')  
+              var terraform_results = fs.readFileSync("/tmp/terraform.results");
+              var comment = process.env.NONCE_WORD + "\n" + terraform_results;    
+              console.log(comment)        
+              github.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: process.env.PR_NUMBER,
+                body: comment
+              })
+            }
+            catch (err) {
+              core.setFailed(`Request failed with error ${err}`)
+            }
+  
+  aggregate_terraform_summary_records:
+    name: Aggregate terraform results
+    if: ${{ always() }}
+    needs: [ find_changed_workspaces, terraform_customer ]
+    runs-on: ubuntu-latest
+    env:
+      PR_NUMBER: ${{ needs.find_changed_workspaces.outputs.pr_number }}
+      SUMMARY_COMMENT_ID: ${{ needs.find_changed_workspaces.outputs.summary_comment_id }}
+      NONCE_WORD: ${{ needs.find_changed_workspaces.outputs.nonce_word }}
+    steps:
+      # Aggregate the individual summary record comments that each terraform job created in the matrix job above
+      # then delete the individual summary record comments
+      - name: Aggregate Summary Records
+        if: env.PR_NUMBER > 0
+        id: aggregate_summary_records
+        uses: actions/github-script@v3
+        with: 
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              // Get the list of comments for this PR and loop through them looking for the individual summary coments (identified by a NONCE word).
+              // These are the records that will be aggregated.
+              var { data: comments } = await github.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: process.env.PR_NUMBER,
+                per_page: 100
+              });     
+              console.log(comments.length)         
+              // Loop through to identify summaries, add individual summary to the aggregated summary_comment variable
+              // and add the comment id to an array
+              var delete_list = []             
+              var summary_comment = 'Terraform Summary:'
+              var sorted = [];
+              for (let comment of comments) {
+                if (comment.body.startsWith(process.env.NONCE_WORD)) {
+                  sorted.push(comment.body.replace(process.env.NONCE_WORD, ''));
+                  delete_list.push(comment.id);
+                }
+              };
+              sorted.sort();
+              for (let comment of sorted) {                
+                  summary_comment += "\n" + comment + "\n";
+              }
+              // Update the summary record with the new aggregated value
+              await github.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: process.env.SUMMARY_COMMENT_ID,
+                body: summary_comment
+              });
+              // Delete the individual summary records that have been aggregated
+              delete_list.forEach( function(comment_id) {
+                console.log(comment_id);
+                github.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment_id
+                })
+              });
+            }
+            catch (err) {
+              core.setFailed(`Request failed with error ${err}`)
+            }
