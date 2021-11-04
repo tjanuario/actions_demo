@@ -358,7 +358,7 @@ jobs:
         env:
           VALIDATE: ${{ steps.tf_validate_storage.outputs.stdout }} ${{ steps.tf_validate_storage.outputs.stderr }}
           PLAN: ${{ steps.tf_plan_storage.outputs.stdout }} ${{ steps.tf_plan_storage.outputs.stderr }}
-          APPLY: ${{ steps.tf_apply_storage.outputs.stdout, }} ${{ steps.tf_apply_storage.outputs.stderr }}
+          APPLY: ${{ steps.tf_apply_storage.outputs.stdout }} ${{ steps.tf_apply_storage.outputs.stderr }}
         continue-on-error: true 
         uses: actions/github-script@v3
         with: 
