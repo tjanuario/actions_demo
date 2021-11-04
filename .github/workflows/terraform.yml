@@ -365,27 +365,30 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             var fs = require('fs');
+            const regex = /(No Change|(Plan:|Apply:) (\d to add, \d to change, \d to destroy)?)/g;
             var output = process.env.VALIDATE + process.env.PLAN + process.env.APPLY
-            if (output.length = 0) {
-              fs.appendFile('/tmp/terraform.results', "storage workspace => Not executed", function (err) {
-                if (err) throw err;
-              });
-            }
-            else {
-              const regex = /(No Change|(Plan:|Apply:) (\d to add, \d to change, \d to destroy)?)/g;
+            if (output.length > 0) {
               let match = regex.exec(output);
               var add = (match !== null) ? match[1] : "Failure"
               fs.appendFile('/tmp/terraform.results', "storage workspace => " + add, function (err) {
                 if (err) throw err;
-              });            
+              });
+            }
+            else {
+              fs.appendFile('/tmp/terraform.results', 'storage workspace => Not executed', function(err) {
+                if (err) throw err;
+              });
+            }
+            var validate = process.env.VALIDATE
+            if (validate.length > 0) {
               const output = `#### Customer Workspace: \`${{ matrix.customer_root }}/storage\`
-              Terraform Validation: \`${{ steps.tf_validate_storage.outcome }}\`
-              Terraform Plan: \`${{ steps.tf_plan_storage.outcome }}\`
-              Terraform Apply: \`${{ steps.tf_apply_storage.outcome }}\`
+              #### Terraform Validation: \`${process.env.VALIDATE}\`
+              #### Terraform Plan: \`${{ steps.tf_plan_storage.outcome }}\`
+              #### Terraform Apply: \`${{ steps.tf_apply_storage.outcome }}\`
 
               <details><summary>Show Plan</summary>
 
-              \`\`\`
+              \`\`\`\n
               ${process.env.PLAN}
               \`\`\`
               
@@ -393,7 +396,7 @@ jobs:
 
               <details><summary>Show Apply</summary>
               
-              \`\`\`
+              \`\`\`\n
               ${process.env.APPLY}
               \`\`\`
               
