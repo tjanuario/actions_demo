@@ -262,7 +262,7 @@ jobs:
       - name: Checkout repository branch
         uses: actions/checkout@v2
         with:
-          ref: env.branch
+          ref: '${{ env.BRANCH }}'
 
       # Downloads and installs Terraform binaries, using the terraform_version specified
       - name: Install and configure Terraform
