@@ -235,9 +235,9 @@ jobs:
                   case "plan":
                     console.log(`workspace: ${commandArray[2]}`)
                     if (typeof commandArray[2] === 'undefined') {
-                      console.log("::set-output command::plan")
+                      console.log("::set-output name=command::plan")
                     } else if (commandArray[2] == process.env.CUSTOMER_ROOT.toLowerCase()) {
-                      console.log("::set-output command::plan")
+                      console.log("::set-output name=command::plan")
                     } else {
                       console.log("plan command is not for this workspace")
                     }
