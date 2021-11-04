@@ -358,8 +358,9 @@ jobs:
         env:
           VALIDATE: ${{ steps.tf_validate_storage.outputs.stdout }} ${{ steps.tf_validate_storage.outputs.stderr }}
           TF_RESULTS: ${{ steps.tf_plan_storage.outputs.stdout }} ${{ steps.tf_plan_storage.outputs.stderr }} ${{ steps.tf_apply_storage.outputs.stdout }} ${{ steps.tf_apply_storage.outputs.stderr }}
-          PLAN_RESULT: ${{ steps.tf_plan_storage.outcome }}
-          APPLY_RESULT: ${{ steps.tf_apply_storage.outcome }}
+          VALIDATE_OUTCOME: ${{ steps.tf_validate_storage.outcome }}
+          PLAN_OUTCOME: ${{ steps.tf_plan_storage.outcome }}
+          APPLY_OUTCOME: ${{ steps.tf_apply_storage.outcome }}
         continue-on-error: true 
         uses: actions/github-script@v3
         with: 
@@ -380,29 +381,20 @@ jobs:
                 if (err) throw err;
               });
             }
-            var command = 'Validate';
+            var command = 'Validate Results';
             var results = process.env.VALIDATE;
-            if (process.env.PLAN_RESULT != 'skipped') { command = 'Plan'; results = process.env.TF_RESULTS }
-            if (process.env.APPLY_RESULT != 'skipped') { command = 'Apply'; results = process.env.TF_RESULTS }
-            var validate = '' + process.env.VALIDATE
-            if (validate.length > 0) {
+            if (process.env.PLAN_OUTCOME != 'skipped') { command = 'Plan Results'; results = process.env.TF_RESULTS }
+            if (process.env.APPLY_OUTCOME != 'skipped') { command = 'Apply Results'; results = process.env.TF_RESULTS }
+            if (process.env.VALIDATE_OUTCOME != 'skipped') {
               const output = `### Customer Workspace: \`${{ matrix.customer_root }}/storage\`
-              Terraform Validation: \`${{ steps.tf_validte_storage.outcome }}\`
-              Terraform Plan: \`${{ steps.tf_plan_storage.outcome }}\`
-              Terraform Apply: \`${{ steps.tf_apply_storage.outcome }}\`
+              Terraform Validation: ${process.env.VALIDATE_OUTCOME}
+              Terraform Plan: ${process.env.PLAN_OUTCOME}
+              Terraform Apply: ${process.env.APPLY_OUTCOME}
 
               <details><summary>Show ${command}</summary>
 
               \`\`\`\n
               ${results}
-              \`\`\`
-              
-              </details>
-
-              <details><summary>Show Apply</summary>
-              
-              \`\`\`\n
-              ${process.env.APPLY}
               \`\`\`
               
               </details>
