@@ -78,7 +78,7 @@ jobs:
       - name: Find customers with changed files
         id: file_change_customers
         run: |      
-          echo '::set-output name=changed_customers::["Terraform/storage/main.tf","Terraform2/storage/main.tf"])'
+          echo '::set-output name=changed_customers::["Terraform","Terraform2"])'
       
       # Outputh the json array that was set in the previous step.  This is the source
       # for the matrix
