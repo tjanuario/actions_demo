@@ -437,6 +437,56 @@ jobs:
             catch (err) {
               core.setFailed(`Request failed with error ${err}`)
             }
+
+      - name: Check for failures
+        env:
+          identity_init_OUTCOME: ${{ steps.tf_init_identity.outcome}}
+          identity_validate_OUTCOME: ${{ steps.tf_validate_identity.outcome}}
+          identity_plan_OUTCOME: ${{ steps.tf_plan_identity.outcome}}
+          identity_apply_OUTCOME: ${{ steps.tf_apply_identity.outcome}}
+          network_init_OUTCOME: ${{ steps.tf_init_network.outcome}}
+          network_validate_OUTCOME: ${{ steps.tf_validate_network.outcome}}
+          network_plan_OUTCOME: ${{ steps.tf_plan_network.outcome}}
+          network_apply_OUTCOME: ${{ steps.tf_apply_network.outcome}}
+          storage_init_OUTCOME: ${{ steps.tf_init_storage.outcome}}
+          storage_validate_OUTCOME: ${{ steps.tf_validate_storage.outcome}}
+          storage_plan_OUTCOME: ${{ steps.tf_plan_storage.outcome}}
+          storage_apply_OUTCOME: ${{ steps.tf_apply_storage.outcome}}  
+          security_init_OUTCOME: ${{ steps.tf_init_security.outcome}}
+          security_validate_OUTCOME: ${{ steps.tf_validate_security.outcome}}
+          security_plan_OUTCOME: ${{ steps.tf_plan_security.outcome}}
+          security_apply_OUTCOME: ${{ steps.tf_apply_security.outcome}}      
+          operations_init_OUTCOME: ${{ steps.tf_init_operations.outcome}}
+          operations_validate_OUTCOME: ${{ steps.tf_validate_operations.outcome}}
+          operations_plan_OUTCOME: ${{ steps.tf_plan_operations.outcome}}
+          operations_apply_OUTCOME: ${{ steps.tf_apply_operations.outcome}}
+        uses: actions/github-script@v3
+        with:
+          script: |
+            var outcomes = [];
+            outcomes.push(process.env.identity_init_OUTCOME);
+            outcomes.push(process.env.identity_validate_OUTCOME);
+            outcomes.push(process.env.identity_plan_OUTCOME);
+            outcomes.push(process.env.identity_apply_OUTCOME);
+            outcomes.push(process.env.network_init_OUTCOME);
+            outcomes.push(process.env.network_validate_OUTCOME);
+            outcomes.push(process.env.network_plan_OUTCOME);
+            outcomes.push(process.env.network_apply_OUTCOME);
+            outcomes.push(process.env.storage_init_OUTCOME);
+            outcomes.push(process.env.storage_validate_OUTCOME);
+            outcomes.push(process.env.storage_plan_OUTCOME);
+            outcomes.push(process.env.storage_apply_OUTCOME);
+            outcomes.push(process.env.security_init_OUTCOME);
+            outcomes.push(process.env.security_validate_OUTCOME);
+            outcomes.push(process.env.security_plan_OUTCOME);
+            outcomes.push(process.env.security_apply_OUTCOME);
+            outcomes.push(process.env.operations_init_OUTCOME);
+            outcomes.push(process.env.operations_validate_OUTCOME);
+            outcomes.push(process.env.operations_plan_OUTCOME);
+            outcomes.push(process.env.operations_apply_OUTCOME);
+            if (outcomes.includes('failure')) {
+              core.setFailed(`Terraform failure - see logs.`)
+            }
   
   aggregate_terraform_summary_records:
     name: Aggregate terraform results
