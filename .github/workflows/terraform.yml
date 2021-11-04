@@ -355,8 +355,8 @@ jobs:
         #if: steps.find_affected_workspaces.outputs.storage
         env:
           VALIDATE: join(["${{ steps.tf_validate_storage.outputs.stdout }}","${{ steps.tf_validate_storage.outputs.stderr }}"], '')
-          PLAN: "${{ steps.tf_plan_storage.outputs.stdout }}"
-          APPLY: "${{ steps.tf_apply_storage.outputs.stdout }}"
+          PLAN: join(["${{ steps.tf_plan_storage.outputs.stdout }}","${{ steps.tf_plan_storage.outputs.stderr }}"], '')
+          APPLY: join(["${{ steps.tf_apply_storage.outputs.stdout }}","${{ steps.tf_apply_storage.outputs.stderr }}"], '')
         continue-on-error: true 
         uses: actions/github-script@v3
         with: 
