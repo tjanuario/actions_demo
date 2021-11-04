@@ -320,7 +320,8 @@ jobs:
       - name: Create terraform results file
         run: echo "${{ matrix.customer_root }}" > /tmp/terraform.results
       
- - name: "Terraform apply on identity workspace"
+      # Execute terraform commands storage
+      - name: "Terraform apply on identity workspace"
         if: steps.tf_validate_identity.outcome == 'success' && steps.find_affected_workspaces.outputs.identity && env.HAS_APPLY_PERMISSION && steps.determine_command.outputs.command == 'apply' 
         id: tf_apply_identity
         working-directory: ./${{ matrix.customer_root }}/identity 
