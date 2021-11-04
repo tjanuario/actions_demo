@@ -372,6 +372,11 @@ jobs:
                 if (err) throw err;
               });
             }
+            else {
+              fs.appendFile('/tmp/terraform.results', "storage workspace => Not executed" {
+                if (err) throw err;
+              });
+            }
             var validate = process.env.VALIDATE
             if (validate.length > 0) {
               const output = `#### Customer Workspace: \`${{ matrix.customer_root }}/storage\`
