@@ -373,7 +373,7 @@ jobs:
               });
             }
             else {
-              fs.appendFile('/tmp/terraform.results', "storage workspace => Not executed" {
+              fs.appendFile('/tmp/terraform.results', 'storage workspace => Not executed', function(err) {
                 if (err) throw err;
               });
             }
@@ -385,15 +385,19 @@ jobs:
               #### Terraform Apply: \`${{ steps.tf_apply_storage.outcome }}\`
 
               <details><summary>Show Plan</summary>
+
               \`\`\`\n
               ${process.env.PLAN}
               \`\`\`
+              
               </details>
 
               <details><summary>Show Apply</summary>
+              
               \`\`\`\n
               ${process.env.APPLY}
               \`\`\`
+              
               </details>
 
               *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ matrix.terraform_roots }}\`, Workflow: \`${{ github.workflow }}\`*`;
