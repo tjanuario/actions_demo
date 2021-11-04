@@ -11,7 +11,6 @@ on:
 
   issue_comment:
     types: [created]
-  push:
  
 jobs: 
   # This job executes terraform init, fmt, validate, and plan when a PR is created

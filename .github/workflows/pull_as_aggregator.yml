@@ -2,7 +2,6 @@ name: "pull as aggregator"
 
 on:
   workflow_dispatch:
-  push:
 
 jobs: 
   # This job executes terraform init, fmt, validate, and plan when a PR is created
