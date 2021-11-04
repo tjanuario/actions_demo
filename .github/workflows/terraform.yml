@@ -356,9 +356,9 @@ jobs:
       - name: "Process terraform outputs"
         #if: steps.find_affected_workspaces.outputs.storage
         env:
-          VALIDATE: join(["${{ steps.tf_validate_storage.outputs.stdout }}","${{ steps.tf_validate_storage.outputs.stderr }}"], '')
-          PLAN: join(["${{ steps.tf_plan_storage.outputs.stdout }}","${{ steps.tf_plan_storage.outputs.stderr }}"], '')
-          APPLY: join(["${{ steps.tf_apply_storage.outputs.stdout }}","${{ steps.tf_apply_storage.outputs.stderr }}"], '')
+          VALIDATE: ${{ join([steps.tf_validate_storage.outputs.stdout, steps.tf_validate_storage.outputs.stderr], '') }}
+          PLAN: ${{ join([steps.tf_plan_storage.outputs.stdout, steps.tf_plan_storage.outputs.stderr], '') }}
+          APPLY: ${{ join([steps.tf_apply_storage.outputs.stdout, steps.tf_apply_storage.outputs.stderr], '') }}
         continue-on-error: true 
         uses: actions/github-script@v3
         with: 
@@ -366,9 +366,9 @@ jobs:
           script: |
             var fs = require('fs');
             const regex = /(No Change|(Plan:|Apply:) (\d to add, \d to change, \d to destroy)?)/g;
-            var planApply = process.env.PLAN + process.env.APPLY
-            if (planApply.length > 0) {
-              let match = regex.exec(planApply);
+            var output = process.env.VALIDATE + process.env.PLAN + process.env.APPLY
+            if (output.length > 0) {
+              let match = regex.exec(output);
               var add = (match !== null) ? match[1] : "Failure"
               fs.appendFile('/tmp/terraform.results', "storage workspace => " + add, function (err) {
                 if (err) throw err;
