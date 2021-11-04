@@ -321,7 +321,7 @@ jobs:
       # Execute terraform commands storage
       - name: Terraform init on storage workspace
         if: (steps.find_affected_workspaces.outputs.storage)
-        id: tf_vinit_storage
+        id: tf_init_storage
         working-directory: ./${{ matrix.customer_root }}/storage
         continue-on-error: true    
         run: |
@@ -352,8 +352,9 @@ jobs:
           terraform apply -auto-approve -no-color
           
       - name: "Process terraform outputs"
-        if: steps.find_affected_workspaces.outputs.storage
+        #if: steps.find_affected_workspaces.outputs.storage
         env:
+          VALIDATE: "${{ steps.tf_validate_storage.outputs.stdout }}"
           PLAN: "${{ steps.tf_plan_storage.outputs.stdout }}"
           APPLY: "${{ steps.tf_apply_storage.outputs.stdout }}"
         continue-on-error: true 
@@ -371,30 +372,33 @@ jobs:
                 if (err) throw err;
               });
             }
-            const output = `#### Customer Workspace: \`${{ matrix.customer_root }}/storage\`
-            #### Terraform Validation: \`${{ steps.tf_validate_storage.outcome }}\`
-            #### Terraform Plan: \`${{ steps.tf_plan_storage.outcome }}\`
-            #### Terraform Apply: \`${{ steps.tf_apply_storage.outcome }}\`
+            var validate = process.env.VALIDATE
+            if (validate.length > 0) {
+              const output = `#### Customer Workspace: \`${{ matrix.customer_root }}/storage\`
+              #### Terraform Validation: \`${{ steps.tf_validate_storage.outcome }}\`
+              #### Terraform Plan: \`${{ steps.tf_plan_storage.outcome }}\`
+              #### Terraform Apply: \`${{ steps.tf_apply_storage.outcome }}\`
 
-            <details><summary>Show Plan</summary>
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-            </details>
+              <details><summary>Show Plan</summary>
+              \`\`\`\n
+              ${process.env.PLAN}
+              \`\`\`
+              </details>
 
-            <details><summary>Show Apply</summary>
-            \`\`\`\n
-            ${process.env.APPLY}
-            \`\`\`
-            </details>
+              <details><summary>Show Apply</summary>
+              \`\`\`\n
+              ${process.env.APPLY}
+              \`\`\`
+              </details>
 
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ matrix.terraform_roots }}\`, Workflow: \`${{ github.workflow }}\`*`;
-            github.issues.createComment({
-              issue_number: process.env.PR_NUMBER,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
+              *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ matrix.terraform_roots }}\`, Workflow: \`${{ github.workflow }}\`*`;
+              github.issues.createComment({
+                issue_number: process.env.PR_NUMBER,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: output
+              })
+            }
 
       # Print the terraform results to the log
       - name: "Debug: Terraform results"
