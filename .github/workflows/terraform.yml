@@ -357,8 +357,9 @@ jobs:
         #if: steps.find_affected_workspaces.outputs.storage
         env:
           VALIDATE: ${{ steps.tf_validate_storage.outputs.stdout }} ${{ steps.tf_validate_storage.outputs.stderr }}
-          PLAN: ${{ steps.tf_plan_storage.outputs.stdout }} ${{ steps.tf_plan_storage.outputs.stderr }}
-          APPLY: ${{ steps.tf_apply_storage.outputs.stdout }} ${{ steps.tf_apply_storage.outputs.stderr }}
+          TF_RESULTS: ${{ steps.tf_plan_storage.outputs.stdout }} ${{ steps.tf_plan_storage.outputs.stderr }} ${{ steps.tf_apply_storage.outputs.stdout }} ${{ steps.tf_apply_storage.outputs.stderr }}
+          PLAN_RESULT: ${{ steps.tf_plan_storage.outcome }}
+          APPLY_RESULT: ${{ steps.tf_apply_storage.outcome }}
         continue-on-error: true 
         uses: actions/github-script@v3
         with: 
@@ -366,7 +367,7 @@ jobs:
           script: |
             var fs = require('fs');
             const regex = /(No Change|(Plan:|Apply:) (\d to add, \d to change, \d to destroy)?)/g;
-            var output = '' + process.env.VALIDATE + process.env.PLAN + process.env.APPLY
+            var output = '' + process.env.VALIDATE + process.env.TF_RESULTS
             if (output.length > 0) {
               let match = regex.exec(output);
               var add = (match !== null) ? match[1] : "Failure"
@@ -379,17 +380,21 @@ jobs:
                 if (err) throw err;
               });
             }
+            var command = 'Validate';
+            var results = process.env.VALIDATE;
+            if (process.env.PLAN_RESULT != 'skipped') { command = 'Plan'; results = process.env.TF_RESULTS }
+            if (process.env.APPLY_RESULT != 'skipped') { command = 'Apply'; results = process.env.TF_RESULTS }
             var validate = '' + process.env.VALIDATE
             if (validate.length > 0) {
               const output = `### Customer Workspace: \`${{ matrix.customer_root }}/storage\`
-              Terraform Validation: ${process.env.VALIDATE}
+              Terraform Validation: \`${{ steps.tf_validte_storage.outcome }}\`
               Terraform Plan: \`${{ steps.tf_plan_storage.outcome }}\`
               Terraform Apply: \`${{ steps.tf_apply_storage.outcome }}\`
 
-              <details><summary>Show Plan</summary>
+              <details><summary>Show ${command}</summary>
 
               \`\`\`\n
-              ${process.env.PLAN}
+              ${results}
               \`\`\`
               
               </details>
