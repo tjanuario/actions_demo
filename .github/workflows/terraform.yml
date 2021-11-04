@@ -71,22 +71,15 @@ jobs:
         uses: actions/github-script@v3
         with:
           script: |
-            console.log(`::set-output name=all_files::["Terraform/storage/main.tf","Terrafor2/storage/main.tf"]`)          
+            console.log(`::set-output name=all_files::["Terraform/storage/main.tf","Terraform2/storage/main.tf"]`)          
 
       # Determine the changed files, remove file extensions (to determine Terraform
       # root directory path), deduplicate root paths to ensure single run of the
       # TF root/workspace, and reformat the result into a matrix-compatible output
       - name: Find customers with changed files
         id: file_change_customers
-        run: |
-          # Get the root customer folders for all changed files. 
-          pattern='s/(\/+(identity|network|storage|security|operations)+\/[a-z|A-Z]+(.tf|.tfvars|.auto.tfvars|.json))//g'
-          echo '${{ steps.file_changes.outputs.all_files }}' | sed -r $pattern > customers.txt
-          # Make sure the list of customer folders is unique
-          jq unique customers.txt > unique_customers.txt       
-          echo "::set-output name=changed_customers::$(cat unique_customers.txt | tr -d '\n' | tr -d ' ' )"
-          rm -f customers.txt
-          rm -f unique_customers.txt
+        run: |      
+          echo '::set-output name=changed_customers::["Terraform/storage/main.tf","Terraform2/storage/main.tf"])'
       
       # Outputh the json array that was set in the previous step.  This is the source
       # for the matrix
