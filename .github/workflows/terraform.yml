@@ -260,6 +260,7 @@ jobs:
           
       # Set AWS creds for future steps
       - name: Configure AWS Credentials
+        if: secrets.AWS_ACCESS_KEY_ID
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
