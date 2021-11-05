@@ -11,7 +11,6 @@ on:
 
   issue_comment:
     types: [created]
-  push:
  
 jobs: 
   # This job executes terraform init, fmt, validate, and plan when a PR is created
@@ -71,22 +70,15 @@ jobs:
         uses: actions/github-script@v3
         with:
           script: |
-            console.log(`::set-output name=all_files::["Terraform/storage/main.tf","Terrafor2/storage/main.tf"]`)          
+            console.log(`::set-output name=all_files::["Terraform/storage/main.tf","Terraform2/storage/main.tf"]`)          
 
       # Determine the changed files, remove file extensions (to determine Terraform
       # root directory path), deduplicate root paths to ensure single run of the
       # TF root/workspace, and reformat the result into a matrix-compatible output
       - name: Find customers with changed files
         id: file_change_customers
-        run: |
-          # Get the root customer folders for all changed files. 
-          pattern='s/(\/+(identity|network|storage|security|operations)+\/[a-z|A-Z]+(.tf|.tfvars|.auto.tfvars|.json))//g'
-          echo '${{ steps.file_changes.outputs.all_files }}' | sed -r $pattern > customers.txt
-          # Make sure the list of customer folders is unique
-          jq unique customers.txt > unique_customers.txt       
-          echo "::set-output name=changed_customers::$(cat unique_customers.txt | tr -d '\n' | tr -d ' ' )"
-          rm -f customers.txt
-          rm -f unique_customers.txt
+        run: |      
+          echo '::set-output name=changed_customers::["Terraform","Terraform2"])'
       
       # Outputh the json array that was set in the previous step.  This is the source
       # for the matrix
@@ -243,9 +235,9 @@ jobs:
                   case "plan":
                     console.log(`workspace: ${commandArray[2]}`)
                     if (typeof commandArray[2] === 'undefined') {
-                      console.log("::set-output command::plan")
+                      console.log("::set-output name=command::plan")
                     } else if (commandArray[2] == process.env.CUSTOMER_ROOT.toLowerCase()) {
-                      console.log("::set-output command::plan")
+                      console.log("::set-output name=command::plan")
                     } else {
                       console.log("plan command is not for this workspace")
                     }
@@ -266,36 +258,18 @@ jobs:
         run: |
           echo '${{ steps.determine_command.outputs.command }}'
           
-      # Set AWS creds for future steps
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: us-west-2
-
       # Checkout the code
       - name: Checkout repository branch
         uses: actions/checkout@v2
+        with:
+          ref: '${{ env.BRANCH }}'
 
       # Downloads and installs Terraform binaries, using the terraform_version specified
       - name: Install and configure Terraform
         uses: hashicorp/setup-terraform@v1
         with:
           terraform_version: latest
-          cli_config_credentials_token: ${{ secrets.CLI_CONFIG_CREDENTIALS_TOKEN }}
           
-      # Ensures that private GitHub repos are available as Terraform module sources by setting git to use a privileged token
-      - name: Configure multi-repo credential substitution
-        run: |
-          git config --local user.name "ucsf-devops-bot"
-          git config --local url."https://${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}@github.com/UCSF-DevOps".insteadOf "https://github.com/UCSF-DevOps"
-          git config --global user.name "ucsf-devops-bot"
-          git config --global url."https://${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}@github.com/UCSF-DevOps".insteadOf "https://github.com/UCSF-DevOps"
-        env:
-          GH_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-      
       # If the trigger was an issue/PR comment, determine which files changed
       - name: Determine file changes
         uses: dorny/paths-filter@v2.10.2
@@ -349,7 +323,7 @@ jobs:
       # Execute terraform commands storage
       - name: Terraform init on storage workspace
         if: (steps.find_affected_workspaces.outputs.storage)
-        id: tf_vinit_storage
+        id: tf_init_storage
         working-directory: ./${{ matrix.customer_root }}/storage
         continue-on-error: true    
         run: |
@@ -380,10 +354,13 @@ jobs:
           terraform apply -auto-approve -no-color
           
       - name: "Process terraform outputs"
-        if: steps.find_affected_workspaces.outputs.storage
+        #if: steps.find_affected_workspaces.outputs.storage
         env:
-          PLAN: "${{ steps.tf_plan_storage.outputs.stdout }}"
-          APPLY: "${{ steps.tf_apply_storage.outputs.stdout }}"
+          VALIDATE: ${{ steps.tf_validate_storage.outputs.stdout }} ${{ steps.tf_validate_storage.outputs.stderr }}
+          TF_RESULTS: ${{ steps.tf_plan_storage.outputs.stdout }} ${{ steps.tf_plan_storage.outputs.stderr }} ${{ steps.tf_apply_storage.outputs.stdout }} ${{ steps.tf_apply_storage.outputs.stderr }}
+          VALIDATE_OUTCOME: ${{ steps.tf_validate_storage.outcome }}
+          PLAN_OUTCOME: ${{ steps.tf_plan_storage.outcome }}
+          APPLY_OUTCOME: ${{ steps.tf_apply_storage.outcome }}
         continue-on-error: true 
         uses: actions/github-script@v3
         with: 
@@ -391,38 +368,45 @@ jobs:
           script: |
             var fs = require('fs');
             const regex = /(No Change|(Plan:|Apply:) (\d to add, \d to change, \d to destroy)?)/g;
-            var planApply = process.env.PLAN + process.env.APPLY
-            if (planApply.length > 0) {
-              let match = regex.exec(planApply);
+            var output = '' + process.env.VALIDATE + process.env.TF_RESULTS
+            if (output.length > 0) {
+              let match = regex.exec(output);
               var add = (match !== null) ? match[1] : "Failure"
               fs.appendFile('/tmp/terraform.results', "storage workspace => " + add, function (err) {
                 if (err) throw err;
               });
             }
-            const output = `#### Customer Workspace: \`${{ matrix.customer_root }}/storage\`
-            #### Terraform Validation: \`${{ steps.tf_validate_storage.outcome }}\`
-            #### Terraform Plan: \`${{ steps.tf_plan_storage.outcome }}\`
-            #### Terraform Apply: \`${{ steps.tf_apply_storage.outcome }}\`
+            else {
+              fs.appendFile('/tmp/terraform.results', 'storage workspace => Not executed', function(err) {
+                if (err) throw err;
+              });
+            }
+            var command = 'Validate Results';
+            var results = process.env.VALIDATE;
+            if (process.env.PLAN_OUTCOME != 'skipped') { command = 'Plan Results'; results = process.env.TF_RESULTS }
+            if (process.env.APPLY_OUTCOME != 'skipped') { command = 'Apply Results'; results = process.env.TF_RESULTS }
+            if (process.env.VALIDATE_OUTCOME != 'skipped') {
+              const output = `### Customer Workspace: \`${{ matrix.customer_root }}/storage\`
+              Terraform Validation: ${process.env.VALIDATE_OUTCOME}
+              Terraform Plan: ${process.env.PLAN_OUTCOME}
+              Terraform Apply: ${process.env.APPLY_OUTCOME}
 
-            <details><summary>Show Plan</summary>
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-            </details>
+              <details><summary>Show ${command}</summary>
 
-            <details><summary>Show Apply</summary>
-            \`\`\`\n
-            ${process.env.APPLY}
-            \`\`\`
-            </details>
+              \`\`\`\n
+              ${results.substring(0,65000)}
+              \`\`\`
+              
+              </details>
 
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ matrix.terraform_roots }}\`, Workflow: \`${{ github.workflow }}\`*`;
-            github.issues.createComment({
-              issue_number: process.env.PR_NUMBER,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
+              *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ matrix.terraform_roots }}\`, Workflow: \`${{ github.workflow }}\`*`;
+              github.issues.createComment({
+                issue_number: process.env.PR_NUMBER,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: output
+              })
+            }
 
       # Print the terraform results to the log
       - name: "Debug: Terraform results"
@@ -452,6 +436,56 @@ jobs:
             }
             catch (err) {
               core.setFailed(`Request failed with error ${err}`)
+            }
+
+      - name: Check for failures
+        env:
+          identity_init_OUTCOME: ${{ steps.tf_init_identity.outcome}}
+          identity_validate_OUTCOME: ${{ steps.tf_validate_identity.outcome}}
+          identity_plan_OUTCOME: ${{ steps.tf_plan_identity.outcome}}
+          identity_apply_OUTCOME: ${{ steps.tf_apply_identity.outcome}}
+          network_init_OUTCOME: ${{ steps.tf_init_network.outcome}}
+          network_validate_OUTCOME: ${{ steps.tf_validate_network.outcome}}
+          network_plan_OUTCOME: ${{ steps.tf_plan_network.outcome}}
+          network_apply_OUTCOME: ${{ steps.tf_apply_network.outcome}}
+          storage_init_OUTCOME: ${{ steps.tf_init_storage.outcome}}
+          storage_validate_OUTCOME: ${{ steps.tf_validate_storage.outcome}}
+          storage_plan_OUTCOME: ${{ steps.tf_plan_storage.outcome}}
+          storage_apply_OUTCOME: ${{ steps.tf_apply_storage.outcome}}  
+          security_init_OUTCOME: ${{ steps.tf_init_security.outcome}}
+          security_validate_OUTCOME: ${{ steps.tf_validate_security.outcome}}
+          security_plan_OUTCOME: ${{ steps.tf_plan_security.outcome}}
+          security_apply_OUTCOME: ${{ steps.tf_apply_security.outcome}}      
+          operations_init_OUTCOME: ${{ steps.tf_init_operations.outcome}}
+          operations_validate_OUTCOME: ${{ steps.tf_validate_operations.outcome}}
+          operations_plan_OUTCOME: ${{ steps.tf_plan_operations.outcome}}
+          operations_apply_OUTCOME: ${{ steps.tf_apply_operations.outcome}}
+        uses: actions/github-script@v3
+        with:
+          script: |
+            var outcomes = [];
+            outcomes.push(process.env.identity_init_OUTCOME);
+            outcomes.push(process.env.identity_validate_OUTCOME);
+            outcomes.push(process.env.identity_plan_OUTCOME);
+            outcomes.push(process.env.identity_apply_OUTCOME);
+            outcomes.push(process.env.network_init_OUTCOME);
+            outcomes.push(process.env.network_validate_OUTCOME);
+            outcomes.push(process.env.network_plan_OUTCOME);
+            outcomes.push(process.env.network_apply_OUTCOME);
+            outcomes.push(process.env.storage_init_OUTCOME);
+            outcomes.push(process.env.storage_validate_OUTCOME);
+            outcomes.push(process.env.storage_plan_OUTCOME);
+            outcomes.push(process.env.storage_apply_OUTCOME);
+            outcomes.push(process.env.security_init_OUTCOME);
+            outcomes.push(process.env.security_validate_OUTCOME);
+            outcomes.push(process.env.security_plan_OUTCOME);
+            outcomes.push(process.env.security_apply_OUTCOME);
+            outcomes.push(process.env.operations_init_OUTCOME);
+            outcomes.push(process.env.operations_validate_OUTCOME);
+            outcomes.push(process.env.operations_plan_OUTCOME);
+            outcomes.push(process.env.operations_apply_OUTCOME);
+            if (outcomes.includes('failure')) {
+              core.setFailed(`Terraform failure - see logs.`)
             }
   
   aggregate_terraform_summary_records:
