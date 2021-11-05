@@ -3,7 +3,7 @@ on: workflow_dispatch
 
 jobs:
   caller1:
-    uses: tjanuario/actions_demo/.github/workflows/workfllow_called.yml@develop
+    uses: tjanuario/actions_demo/.github/workflows/workflow_called.yml@develop
     with: 
       customer_name: ${{ matrix.value }}
       matrix_value: ['a', b']
