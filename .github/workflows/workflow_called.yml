@@ -1,0 +1,32 @@
+name: Customer
+
+on:
+  workflow_call:
+    inputs:
+      customer_name:
+        required: true
+        type: string
+      matrix_value:
+        required: true
+        type: string
+    secrets:
+      token:
+        required: true
+
+jobs:
+  matrix-job:
+    name: matrix-job
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: 
+        value: ${{ fromjson(inputs.matrix_value) }}
+    steps:
+      - name: test_matrix
+        id: test
+        run: |
+          sleep 10s
+          now=$(date +"%T")
+          echo "Current time : $now"
+          echo ${{ matrix.value }}
