@@ -5,4 +5,5 @@ jobs:
   caller1:
     runs-on: ubuntu-latest
     steps:
-      - run: echo 'does nothing'
+      - run: |
+        echo ${{ github }}
