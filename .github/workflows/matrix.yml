@@ -2,25 +2,31 @@
 name: Matrix
 on: 
   workflow_dispatch:
-    inputs:
-      do-nothing:
-        description: 'does nothing'
-        required: false
-        default: nothing
+
 jobs:
-  matrix-job:
-    name: matrix-job
+  matrix_job:
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
-      max-parallel: 1
       matrix: 
-        value: ['one', 'two', 'three', 'four', 'five']
+        job_name: ['one', 'two', 'three', 'four', 'five']
     steps:
-      - name: test_matrix
-        id: test
+      - name: create_output
         run: |
-          sleep 10s
-          now=$(date +"%T")
-          echo "Current time : $now"
-          echo ${{ matrix.value }}
+          echo "::set-output name=my_output::${{ matrix.job_name }}"
+      - name: ${{ steps.create_output.output.my_output }}
+        run: echo "This steps name is dynamically set to '${{ matrix.job_name }}'"
+
+  aggregator:
+    runs-on: ubuntu-latest
+    needs: [ matrix_job ]
+    steps:
+      - uses: actions/github-script@v3
+        with:
+          script: | 
+            let { data: joblist } = await github.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: {{ github.run_id }}
+            });
+            console.log joblist.toString()
+
