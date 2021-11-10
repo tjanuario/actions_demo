@@ -14,8 +14,8 @@ on:
 jobs:
   matrix_job:
     runs-on: ubuntu-latest
-    max-parallel: ${{ github.event.inputs.MAX_PARALLEL }}
     strategy:
+      max-parallel: ${{ github.event.inputs.MAX_PARALLEL }}
       matrix: 
         job_name: ['one', 'two', 'three', 'four', 'five']
     steps:
