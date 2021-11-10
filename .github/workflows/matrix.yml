@@ -2,10 +2,19 @@
 name: Matrix
 on: 
   workflow_dispatch:
+    inputs:
+      COMMAND:
+        description: 'command'
+        required: true
+      MAX_PARALLEL:
+        default: 1
+        description: 'max'
+        required: true
 
 jobs:
   matrix_job:
     runs-on: ubuntu-latest
+    max-parallel: ${{ github.event.inputs.MAX_PARALLEL }}
     strategy:
       matrix: 
         job_name: ['one', 'two', 'three', 'four', 'five']
