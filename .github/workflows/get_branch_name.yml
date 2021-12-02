@@ -21,10 +21,10 @@ jobs:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           script: | 
             console.log(context)
-            console.log('${{ github.gitub_ref }}')
+            console.log('${{ github.github_ref }}')
       - name: Get github context
         uses: actions/github-script@v3
         with:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           script: | 
-            console.log('${{ github }}')
+            console.log('${{ toJSON(github) }}')
