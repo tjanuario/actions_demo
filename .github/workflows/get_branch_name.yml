@@ -1,0 +1,30 @@
+name: "Get Branch Name"
+on: 
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+  issue_comment:
+    types: [created]
+ 
+jobs: 
+  # This job executes terraform init, fmt, validate, and plan when a PR is created
+  # and on subsequent commits to the same PR branch. This workflow detects file changes
+  # and only runs when ".tf" files within the workspace have been modified.
+  get_branch_name:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get Branch Name
+        id: get_branch_name
+        uses: actions/github-script@v3
+        with:
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          script: | 
+            console.log(context)
+            console.log('${{ github.gitub_ref }}')
+      - name: Get github context
+        uses: actions/github-script@v3
+        with:
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          script: | 
+            console.log('${{ github }}')
