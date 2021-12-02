@@ -3,7 +3,12 @@ on: workflow_dispatch
 
 jobs:
   caller1:
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          echo "${{ github.run_id }}"
+    uses: tjanuario/actions_demo/.github/workflows/workflow_called.yml@develop
+    with: 
+      customer_name: ${{ matrix.value }}
+      matrix_value: ['a', b']
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: 
+        value: ['one', 'two', 'three', 'four', 'five']
